@@ -7,4 +7,5 @@ import com.project.tradingev_batter.Entity.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     public User findByUsernameAndPassword(String username, String password);
+    User findByUsername(String username);
 }
