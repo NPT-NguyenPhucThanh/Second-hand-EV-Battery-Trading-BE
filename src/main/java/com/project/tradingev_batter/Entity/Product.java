@@ -52,6 +52,9 @@ public class Product {
     @Column(name = "updatedat")
     private Date updatedat;
 
+    @Column(name = "in_warehouse")
+    private Boolean inWarehouse = false;
+
     @ManyToOne
     @JoinColumn(name = "userid")
     private User users;

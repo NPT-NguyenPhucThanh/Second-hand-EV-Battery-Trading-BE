@@ -29,7 +29,7 @@ public class Transaction {
 
     @ManyToOne
     @JoinColumn(name = "orderid")
-    private Order orders;
+    private Orders orders;
 
     @ManyToOne
     @JoinColumn(name = "created_by")

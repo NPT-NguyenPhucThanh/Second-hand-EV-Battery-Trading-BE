@@ -32,5 +32,5 @@ public class Refund {
 
     @ManyToOne
     @JoinColumn(name = "orderid")
-    private Order orders;
+    private Orders orders;
 }

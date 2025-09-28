@@ -1,5 +1,4 @@
 package com.project.tradingev_batter.Entity;
-import com.project.tradingev_batter.Entity.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -38,5 +37,5 @@ public class Address {
     private User users;
 
     @OneToMany(mappedBy = "address")
-    private List<Order> orderList = new ArrayList<>();
+    private List<Orders> ordersList = new ArrayList<>();
 }

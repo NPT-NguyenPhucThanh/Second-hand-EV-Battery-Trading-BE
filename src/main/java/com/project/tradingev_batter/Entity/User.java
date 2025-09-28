@@ -86,7 +86,7 @@ public class User {
     private List<Post> userReviewed = new ArrayList<>();
 
     @OneToMany(mappedBy = "users")
-    private List<Order> orders = new ArrayList<>();
+    private List<Orders> orders = new ArrayList<>();
 
     @OneToMany(mappedBy = "createdBy")
     private List<Transaction> transactions = new ArrayList<>();

@@ -33,7 +33,7 @@ public class Chatroom {
 
     @ManyToOne
     @JoinColumn(name = "order_id")
-    private Order orders;
+    private Orders orders;
 
     @OneToMany(mappedBy = "chatroom")
     private List<Message> message = new ArrayList<>();

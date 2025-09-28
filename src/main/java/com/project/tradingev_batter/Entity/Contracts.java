@@ -44,7 +44,7 @@ public class Contracts {
 
     @ManyToOne
     @JoinColumn(name = "orderid")
-    private Order orders;
+    private Orders orders;
 
     @ManyToOne
     @JoinColumn(name = "buyerid")

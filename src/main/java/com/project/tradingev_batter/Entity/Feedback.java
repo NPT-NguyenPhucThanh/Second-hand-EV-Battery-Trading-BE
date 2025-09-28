@@ -29,7 +29,7 @@ public class Feedback {
 
     @ManyToOne
     @JoinColumn(name = "orderid")
-    private Order orders;
+    private Orders orders;
 
     @ManyToOne
     @JoinColumn(name = "productid")
