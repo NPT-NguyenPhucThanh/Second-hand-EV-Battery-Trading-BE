@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import com.project.tradingev_batter.dto.ApprovalRequest;
+import com.project.tradingev_batter.dto.LockRequest;
 
 import java.util.List;
 
@@ -62,5 +63,17 @@ public class ManagerController {
     public ResponseEntity<String> resolveDispute(@PathVariable Long disputeId, @RequestBody ApprovalRequest request) {
         managerService.resolveDispute(disputeId, request.getNote());
         return ResponseEntity.ok("Dispute resolved");
+    }
+
+    @PostMapping("/users/{userId}/approve-seller")
+    public ResponseEntity<String> approveSeller(@PathVariable Long userId, @RequestBody ApprovalRequest request) {
+        managerService.approveSellerUpgrade(userId, request.isApproved());
+        return ResponseEntity.ok("Seller upgrade processed");
+    }
+
+    @PostMapping("/users/{userId}/lock")
+    public ResponseEntity<String> lockUser(@PathVariable Long userId, @RequestBody LockRequest request) {
+        managerService.lockUser(userId, request.isLock());
+        return ResponseEntity.ok("User locked/unlocked");
     }
 }

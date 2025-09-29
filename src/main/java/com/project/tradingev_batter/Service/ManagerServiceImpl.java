@@ -7,6 +7,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Dispute;
+import com.project.tradingev_batter.Entity.Role;
 
 import java.util.List;
 
@@ -18,13 +19,16 @@ public class ManagerServiceImpl {
     private final ContractsRepository contractsRepository;
     private final OrderRepository orderRepository;
     private final DisputeRepository disputeRepository;
+    private final RoleRepository roleRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
                               ProductRepository productRepository,
                               ContractsRepository contractsRepository,
                               OrderRepository orderRepository,
-                              DisputeRepository disputeRepository) {
+                              DisputeRepository disputeRepository,
+                              RoleRepository roleRepository) {
+        this.roleRepository = roleRepository;
         this.disputeRepository = disputeRepository;
         this.orderRepository = orderRepository;
         this.notificationRepository = notificationRepository;
@@ -124,7 +128,9 @@ public class ManagerServiceImpl {
         //ở đây có thể gửi cho seller (từ product trong order_detail) nếu cần
     }
 
-
+    //Giải quyết tranh chấp
+    //chuyển trạng thái tranh chấp sang RESOLVED, lưu resolution
+    //cập nhật trạng thái đơn hàng sang DISPUTE_RESOLVED
     public void resolveDispute(Long disputeId, String resolution) {
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new RuntimeException("Dispute not found"));
@@ -159,5 +165,39 @@ public class ManagerServiceImpl {
         User manager = userRepository.findByUsername(username);
         // Check role MANAGER
         return manager;
+    }
+
+    public void approveSellerUpgrade(Long sellerId, boolean approved) {
+        User seller = userRepository.findById(sellerId)
+                .orElseThrow(() -> new RuntimeException("Seller not found"));
+        if(approved) {
+            Role sellerRole = roleRepository.findByRoleName("SELLER");
+            if(sellerRole == null) {
+                throw new RuntimeException("SELLER role not found");
+            }
+            seller.getRoles().add(sellerRole);
+        }
+        userRepository.save(seller);
+
+        //tạo noti cho seller
+        Notification notification = new Notification();
+        notification.setTitle(approved ? "Nâng cấp tài khoản thành công" : "Nâng cấp tài khoản thất bại");
+        notification.setDescription(approved ? "Tài khoản của bạn đã được nâng cấp lên ADVANCED_SELLER." : "Yêu cầu nâng cấp tài khoản của bạn đã bị từ chối.");
+        notification.setUsers(seller);
+        notificationRepository.save(notification);
+    }
+
+    public void lockUser(Long userId, boolean lock) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setIsactive(!lock);
+        userRepository.save(user);
+
+        //tạo noti cho user
+        Notification notification = new Notification();
+        notification.setTitle(lock ? "Tài khoản bị khóa" : "Tài khoản được mở khóa");
+        notification.setDescription(lock ? "Tài khoản của bạn đã bị khóa do vi phạm chính sách." : "Tài khoản của bạn đã được mở khóa. Vui lòng tuân thủ chính sách của chúng tôi.");
+        notification.setUsers(user);
+        notificationRepository.save(notification);
     }
 }

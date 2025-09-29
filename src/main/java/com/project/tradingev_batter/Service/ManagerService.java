@@ -15,4 +15,6 @@ public interface ManagerService {
     void addToWarehouse(Long productId);
     void approveOrder(Long orderId, boolean approved, String note);
     void resolveDispute(Long disputeId, String resolution);
+    void approveSellerUpgrade(Long sellerId, boolean approved); //Quản lý tài khoản người dùng
+    void lockUser(Long userId, boolean lock); //Khóa/Mở khóa tài khoản người dùng
 }
