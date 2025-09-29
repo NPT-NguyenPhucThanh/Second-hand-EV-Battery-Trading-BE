@@ -58,5 +58,9 @@ public class ManagerController {
         return ResponseEntity.ok("Order processed");
     }
 
-
+    @PostMapping("/disputes/{disputeId}/resolve")
+    public ResponseEntity<String> resolveDispute(@PathVariable Long disputeId, @RequestBody ApprovalRequest request) {
+        managerService.resolveDispute(disputeId, request.getNote());
+        return ResponseEntity.ok("Dispute resolved");
+    }
 }

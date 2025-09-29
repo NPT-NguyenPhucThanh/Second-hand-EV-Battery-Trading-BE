@@ -1,13 +1,12 @@
 package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Repository.NotificationRepository;
-import com.project.tradingev_batter.Repository.UserRepository;
-import com.project.tradingev_batter.Repository.ProductRepository;
-import com.project.tradingev_batter.Repository.ContractsRepository;
+import com.project.tradingev_batter.Repository.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.Dispute;
 
 import java.util.List;
 
@@ -18,12 +17,15 @@ public class ManagerServiceImpl {
     private final ProductRepository productRepository;
     private final ContractsRepository contractsRepository;
     private final OrderRepository orderRepository;
+    private final DisputeRepository disputeRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
                               ProductRepository productRepository,
                               ContractsRepository contractsRepository,
-                              OrderRepository orderRepository) {
+                              OrderRepository orderRepository,
+                              DisputeRepository disputeRepository) {
+        this.disputeRepository = disputeRepository;
         this.orderRepository = orderRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
@@ -91,6 +93,8 @@ public class ManagerServiceImpl {
         return productRepository.findByTypeAndInWarehouse("Car EV", true); // Cần thêm custom query nếu chưa có
     }
 
+    //chỉ có product type "Car EV" mới được thêm vào kho
+    //khi thêm vào kho, set inWarehouse = true
     public void addWarehouseProduct(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -101,6 +105,9 @@ public class ManagerServiceImpl {
         productRepository.save(product);
     }
 
+    //Duyệt đơn hàng
+    //nếu approved = true -> chuyển trạng thái đơn hàng sang DA_DUYET
+    //nếu approved = false -> chuyển trạng thái đơn hàng sang BI_TU_CHOI
     public void approveOrder(Long orderId, boolean approved, String note) {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -117,4 +124,40 @@ public class ManagerServiceImpl {
         //ở đây có thể gửi cho seller (từ product trong order_detail) nếu cần
     }
 
+
+    public void resolveDispute(Long disputeId, String resolution) {
+        Dispute dispute = disputeRepository.findById(disputeId)
+                .orElseThrow(() -> new RuntimeException("Dispute not found"));
+        dispute.setStatus("RESOLVED");
+        dispute.setResolution(resolution);
+        //dispute.setResolvedBy(getCurrentManager()); // Giả sử có phương thức lấy manager hiện tại
+        disputeRepository.save(dispute);
+
+        //update order status
+        Orders order = dispute.getOrder();
+        order.setStatus("DISPUTE_RESOLVED");
+        orderRepository.save(order);
+
+        //tạo noti cho buyer và seller
+        Notification buyerNoti = new Notification();
+        buyerNoti.setTitle("Tranh chấp đã được giải quyết");
+        buyerNoti.setDescription(resolution);
+        buyerNoti.setUsers(order.getUsers());
+        notificationRepository.save(buyerNoti);
+
+        //tạo noti cho seller
+        Notification sellerNoti = new Notification();
+        sellerNoti.setTitle("Tranh chấp đã được giải quyết");
+        sellerNoti.setDescription(resolution);
+        sellerNoti.setUsers(order.getUsers());
+        notificationRepository.save(sellerNoti);
+    }
+
+    private User getCurrentManager() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
+        User manager = userRepository.findByUsername(username);
+        // Check role MANAGER
+        return manager;
+    }
 }
