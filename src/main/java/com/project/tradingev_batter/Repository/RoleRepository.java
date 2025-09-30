@@ -6,5 +6,5 @@ import com.project.tradingev_batter.Entity.Role;
 
 @Repository
 public interface RoleRepository extends JpaRepository<Role, Long> {
-    Role findByRoleName(String name);
+    Role findByRolename(String name);
 }

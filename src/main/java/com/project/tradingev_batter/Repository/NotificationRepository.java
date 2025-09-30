@@ -8,5 +8,5 @@ import com.project.tradingev_batter.Entity.Notification;
 import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification,Long> {
-    List<Notification> findByUserId(User user);
+    List<Notification> findByUsers(User user);
 }

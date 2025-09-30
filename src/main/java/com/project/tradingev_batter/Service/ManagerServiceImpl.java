@@ -50,7 +50,7 @@ public class ManagerServiceImpl implements ManagerService {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new RuntimeException("Manager not found"));
         //thêm kiểm tra role ở đây nếu cần
-        return notificationRepository.findByUserId(manager);
+        return notificationRepository.findByUsers(manager);
     }
 
     //Duyệt sơ bộ product (xe) của seller
@@ -207,7 +207,7 @@ public class ManagerServiceImpl implements ManagerService {
         User seller = userRepository.findById(sellerId)
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
         if(approved) {
-            Role sellerRole = roleRepository.findByRoleName("SELLER");
+            Role sellerRole = roleRepository.findByRolename("SELLER");
             if(sellerRole == null) {
                 throw new RuntimeException("SELLER role not found");
             }
