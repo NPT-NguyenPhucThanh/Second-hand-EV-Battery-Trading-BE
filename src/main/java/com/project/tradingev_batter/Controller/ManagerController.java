@@ -1,28 +1,28 @@
 package com.project.tradingev_batter.Controller;
 
 import com.project.tradingev_batter.Entity.Notification;
+import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Service.ManagerService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 import com.project.tradingev_batter.dto.ApprovalRequest;
 import com.project.tradingev_batter.dto.LockRequest;
+import com.project.tradingev_batter.Repository.PackageServiceRepository;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/manager")
-
 public class ManagerController {
     private final ManagerService managerService;
+    private final PackageServiceRepository packageServiceRepository;
 
-    public ManagerController(ManagerService managerService) {
+    public ManagerController(ManagerService managerService, PackageServiceRepository packageServiceRepository) {
+
         this.managerService = managerService;
+        this.packageServiceRepository = packageServiceRepository;
     }
 
     @GetMapping("/notifications/{managerId}")
@@ -75,5 +75,36 @@ public class ManagerController {
     public ResponseEntity<String> lockUser(@PathVariable Long userId, @RequestBody LockRequest request) {
         managerService.lockUser(userId, request.isLock());
         return ResponseEntity.ok("User locked/unlocked");
+    }
+
+    @PostMapping("/packages")
+    public ResponseEntity<PackageService> createPackage(@RequestBody PackageService pkg) {
+        return ResponseEntity.ok(managerService.createPackage(pkg));
+    }
+
+    @PutMapping("/packages/{id}")
+    public ResponseEntity<PackageService> updatePackage(@PathVariable Long id, @RequestBody PackageService pkg) {
+        return ResponseEntity.ok(managerService.updatePackage(id, pkg));
+    }
+
+    @GetMapping("/packages")
+    public ResponseEntity<List<PackageService>> getAllPackages() {
+        return ResponseEntity.ok(packageServiceRepository.findAll());
+    }
+
+    @DeleteMapping("/packages/{id}")
+    public ResponseEntity<String> deletePackage(@PathVariable Long id) {
+        packageServiceRepository.deleteById(id);
+        return ResponseEntity.ok("Deleted");
+    }
+
+    @GetMapping("/reports/revenue")
+    public ResponseEntity<Map<String, Object>> getRevenueReport() {
+        return ResponseEntity.ok(managerService.getRevenueReport());
+    }
+
+    @GetMapping("/reports/system")
+    public ResponseEntity<Map<String, Object>> getSystemReport() {
+        return ResponseEntity.ok(managerService.getSystemReport());
     }
 }

@@ -8,8 +8,12 @@ import org.springframework.stereotype.Service;
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Dispute;
 import com.project.tradingev_batter.Entity.Role;
+import com.project.tradingev_batter.Entity.User;;
 
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ManagerServiceImpl {
@@ -20,6 +24,7 @@ public class ManagerServiceImpl {
     private final OrderRepository orderRepository;
     private final DisputeRepository disputeRepository;
     private final RoleRepository roleRepository;
+    private final PackageServiceRepository packageServiceRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
@@ -27,7 +32,9 @@ public class ManagerServiceImpl {
                               ContractsRepository contractsRepository,
                               OrderRepository orderRepository,
                               DisputeRepository disputeRepository,
-                              RoleRepository roleRepository) {
+                              RoleRepository roleRepository,
+                              PackageServiceRepository packageServiceRepository) {
+        this.packageServiceRepository = packageServiceRepository;
         this.roleRepository = roleRepository;
         this.disputeRepository = disputeRepository;
         this.orderRepository = orderRepository;
@@ -81,16 +88,30 @@ public class ManagerServiceImpl {
             //tạo hợp đồng điện tử
             //ở đây tui coi tutorial (sử dụng Contract entity)
             Contracts contracts = new Contracts();
+            contracts.setSignedat(new Date());
             contracts.setOrders(null); //nếu ở đây không có liên kết order
             contracts.setBuyers(null);
             contracts.setSellers(product.getUsers());
-            contracts.setAdmins(null); //đang chưa biết sao với đoạn này
+            contracts.setAdmins(getCurrentManager()); //đang chưa biết sao với đoạn này
             contracts.setStatus(true);
             contractsRepository.save(contracts);
+
+            //tạo noti cho seller
+            Notification sellerNotif = new Notification();
+            sellerNotif.setTitle("Xe đạt kiểm định");
+            sellerNotif.setDescription("Vui lòng ký hợp đồng điện tử.");
+            sellerNotif.setUsers(product.getUsers());
+            notificationRepository.save(sellerNotif);
         } else {
             product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH.toString());
         }
-        productRepository.save(product); //noti cho seller với note
+        productRepository.save(product);
+        // Tạo noti chung
+        Notification noteNotif = new Notification();
+        noteNotif.setTitle(passed ? "Kiểm định thành công" : "Kiểm định thất bại");
+        noteNotif.setDescription(note);
+        noteNotif.setUsers(product.getUsers());
+        notificationRepository.save(noteNotif);
     }
 
     public List<Product> getWarehouseProducts() {
@@ -126,6 +147,14 @@ public class ManagerServiceImpl {
         notificationRepository.save(buyerNoti);
 
         //ở đây có thể gửi cho seller (từ product trong order_detail) nếu cần
+        if (!order.getDetails().isEmpty()) {
+            User seller = order.getDetails().get(0).getProducts().getUsers();
+            Notification sellerNotif = new Notification();
+            sellerNotif.setTitle(approved ? "Đơn hàng được duyệt" : "Đơn hàng bị từ chối");
+            sellerNotif.setDescription(note);
+            sellerNotif.setUsers(seller);
+            notificationRepository.save(sellerNotif);
+        }
     }
 
     //Giải quyết tranh chấp
@@ -144,7 +173,7 @@ public class ManagerServiceImpl {
         order.setStatus("DISPUTE_RESOLVED");
         orderRepository.save(order);
 
-        //tạo noti cho buyer và seller
+        //tạo noti cho buyer
         Notification buyerNoti = new Notification();
         buyerNoti.setTitle("Tranh chấp đã được giải quyết");
         buyerNoti.setDescription(resolution);
@@ -161,12 +190,19 @@ public class ManagerServiceImpl {
 
     private User getCurrentManager() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new RuntimeException("No authenticated manager");
+        }
         String username = auth.getName();
         User manager = userRepository.findByUsername(username);
-        // Check role MANAGER
+        if (manager == null) {
+            throw new RuntimeException("Manager not found");
+        }
         return manager;
     }
 
+    //Duyệt nâng cấp tài khoản seller
+    //nếu approved = true -> thêm role SELLER cho user
     public void approveSellerUpgrade(Long sellerId, boolean approved) {
         User seller = userRepository.findById(sellerId)
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
@@ -182,11 +218,14 @@ public class ManagerServiceImpl {
         //tạo noti cho seller
         Notification notification = new Notification();
         notification.setTitle(approved ? "Nâng cấp tài khoản thành công" : "Nâng cấp tài khoản thất bại");
-        notification.setDescription(approved ? "Tài khoản của bạn đã được nâng cấp lên ADVANCED_SELLER." : "Yêu cầu nâng cấp tài khoản của bạn đã bị từ chối.");
+        notification.setDescription(approved ? "Bạn giờ là seller." : "Yêu cầu bị từ chối.");
         notification.setUsers(seller);
         notificationRepository.save(notification);
     }
 
+    //Khóa/Mở khóa tài khoản người dùng
+    //nếu lock = true -> set isActive = false
+    //nếu lock = false -> set isActive = true
     public void lockUser(Long userId, boolean lock) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -199,5 +238,46 @@ public class ManagerServiceImpl {
         notification.setDescription(lock ? "Tài khoản của bạn đã bị khóa do vi phạm chính sách." : "Tài khoản của bạn đã được mở khóa. Vui lòng tuân thủ chính sách của chúng tôi.");
         notification.setUsers(user);
         notificationRepository.save(notification);
+    }
+
+    //Quản lý gói dịch vụ
+    public PackageService createPackage(PackageService pkg) {
+        pkg.setCreatedAt(new Date());
+        return packageServiceRepository.save(pkg);
+    }
+
+    //Cập nhật gói dịch vụ
+    public PackageService updatePackage(Long id, PackageService pkg) {
+        PackageService existingPkg = packageServiceRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Package not found"));
+        existingPkg.setName(pkg.getName());
+        existingPkg.setDurationMonths(pkg.getDurationMonths());
+        existingPkg.setPrice(pkg.getPrice());
+        //cần gì thì add thêm nha
+        return packageServiceRepository.save(existingPkg);
+    }
+
+    //Báo cáo doanh thu
+    //tính tổng doanh thu từ tất cả đơn hàng đã duyệt
+    public Map<String, Object> getRevenueReport() {
+        double totalSales = orderRepository.getTotalSales();
+        double commission = totalSales * 0.05; //hoa hồng 5%
+        Map<String,Object> rp = new HashMap<>();
+        rp.put("totalSales", totalSales);
+        rp.put("commission", commission);
+        return rp;
+    }
+
+    public Map<String, Object> getSystemReport() {
+        Map<String,Object> rp = new HashMap<>();
+        rp.put("totalProduct", productRepository.count());
+        rp.put("totalOrder", orderRepository.count());
+        rp.put("totalUser", userRepository.count());
+        rp.put("revenue", getRevenueReport().get("totalSales"));
+
+        // Xu hướng: Sử dụng query group by createdat
+        // Ví dụ: List<Object[]> trends = orderRepository.getOrdersByMonth();
+        // thêm bên orderRepository rồi mà chưa làm ở đây
+        return rp;
     }
 }
