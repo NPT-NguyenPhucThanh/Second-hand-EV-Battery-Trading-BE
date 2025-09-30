@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Dispute;
 import com.project.tradingev_batter.Entity.Role;
-import com.project.tradingev_batter.Entity.User;;
+import com.project.tradingev_batter.Entity.User;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class ManagerServiceImpl {
+public class ManagerServiceImpl implements ManagerService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
@@ -120,7 +120,7 @@ public class ManagerServiceImpl {
 
     //chỉ có product type "Car EV" mới được thêm vào kho
     //khi thêm vào kho, set inWarehouse = true
-    public void addWarehouseProduct(Long productId) {
+    public void addToWarehouse(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         if(!"Car EV".equals(product.getType())) {

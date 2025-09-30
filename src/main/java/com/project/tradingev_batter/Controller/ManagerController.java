@@ -19,8 +19,8 @@ public class ManagerController {
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
 
-    public ManagerController(ManagerService managerService, PackageServiceRepository packageServiceRepository) {
-
+    public ManagerController(ManagerService managerService,
+                             PackageServiceRepository packageServiceRepository) {
         this.managerService = managerService;
         this.packageServiceRepository = packageServiceRepository;
     }
