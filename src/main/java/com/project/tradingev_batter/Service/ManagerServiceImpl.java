@@ -9,6 +9,7 @@ import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Dispute;
 import com.project.tradingev_batter.Entity.Role;
 import com.project.tradingev_batter.Entity.User;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -46,6 +47,8 @@ public class ManagerServiceImpl implements ManagerService {
 
     //Sử dụng Notification entity. Khi seller đăng product (xe), tự động tạo notification cho managers.
     //ở đây giả định đã là manager r á
+    @Override
+    @Transactional
     public List<Notification> getNotiForManager(Long managerId) {
         User manager = userRepository.findById(managerId)
                 .orElseThrow(() -> new RuntimeException("Manager not found"));
@@ -57,6 +60,8 @@ public class ManagerServiceImpl implements ManagerService {
     //nếu approved = true -> chuyển trạng thái product sang CHO_KIEM_DUYET
     //nếu approved = false -> chuyển trạng thái product sang BI_TU_CHOI
     //tạo noti cho seller với note
+    @Override
+    @Transactional
     public void approvePreliminaryProduct(Long productId, String note, boolean approved) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -80,6 +85,8 @@ public class ManagerServiceImpl implements ManagerService {
     //nếu passed = true -> chuyển trạng thái product sang DA_DUYET và tạo hợp đồng điện tử
     //nếu passed = false -> chuyển trạng thái product sang KHONG_DAT_KIEM_DINH
     //tạo noti cho seller với note
+    @Override
+    @Transactional
     public void inputInspectionResult(Long productId, boolean passed, String note) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -114,12 +121,16 @@ public class ManagerServiceImpl implements ManagerService {
         notificationRepository.save(noteNotif);
     }
 
+    @Override
+    @Transactional
     public List<Product> getWarehouseProducts() {
         return productRepository.findByTypeAndInWarehouse("Car EV", true); // Cần thêm custom query nếu chưa có
     }
 
     //chỉ có product type "Car EV" mới được thêm vào kho
     //khi thêm vào kho, set inWarehouse = true
+    @Override
+    @Transactional
     public void addToWarehouse(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -133,6 +144,8 @@ public class ManagerServiceImpl implements ManagerService {
     //Duyệt đơn hàng
     //nếu approved = true -> chuyển trạng thái đơn hàng sang DA_DUYET
     //nếu approved = false -> chuyển trạng thái đơn hàng sang BI_TU_CHOI
+    @Override
+    @Transactional
     public void approveOrder(Long orderId, boolean approved, String note) {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -160,6 +173,8 @@ public class ManagerServiceImpl implements ManagerService {
     //Giải quyết tranh chấp
     //chuyển trạng thái tranh chấp sang RESOLVED, lưu resolution
     //cập nhật trạng thái đơn hàng sang DISPUTE_RESOLVED
+    @Override
+    @Transactional
     public void resolveDispute(Long disputeId, String resolution) {
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new RuntimeException("Dispute not found"));
@@ -203,6 +218,8 @@ public class ManagerServiceImpl implements ManagerService {
 
     //Duyệt nâng cấp tài khoản seller
     //nếu approved = true -> thêm role SELLER cho user
+    @Override
+    @Transactional
     public void approveSellerUpgrade(Long sellerId, boolean approved) {
         User seller = userRepository.findById(sellerId)
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
@@ -226,6 +243,8 @@ public class ManagerServiceImpl implements ManagerService {
     //Khóa/Mở khóa tài khoản người dùng
     //nếu lock = true -> set isActive = false
     //nếu lock = false -> set isActive = true
+    @Override
+    @Transactional
     public void lockUser(Long userId, boolean lock) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -241,12 +260,16 @@ public class ManagerServiceImpl implements ManagerService {
     }
 
     //Quản lý gói dịch vụ
+    @Override
+    @Transactional
     public PackageService createPackage(PackageService pkg) {
         pkg.setCreatedAt(new Date());
         return packageServiceRepository.save(pkg);
     }
 
     //Cập nhật gói dịch vụ
+    @Override
+    @Transactional
     public PackageService updatePackage(Long id, PackageService pkg) {
         PackageService existingPkg = packageServiceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
@@ -259,6 +282,8 @@ public class ManagerServiceImpl implements ManagerService {
 
     //Báo cáo doanh thu
     //tính tổng doanh thu từ tất cả đơn hàng đã duyệt
+    @Override
+    @Transactional
     public Map<String, Object> getRevenueReport() {
         double totalSales = orderRepository.getTotalSales();
         double commission = totalSales * 0.05; //hoa hồng 5%
@@ -268,6 +293,8 @@ public class ManagerServiceImpl implements ManagerService {
         return rp;
     }
 
+    @Override
+    @Transactional
     public Map<String, Object> getSystemReport() {
         Map<String,Object> rp = new HashMap<>();
         rp.put("totalProduct", productRepository.count());
