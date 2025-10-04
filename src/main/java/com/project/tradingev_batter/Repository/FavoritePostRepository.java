@@ -5,5 +5,5 @@ import org.springframework.stereotype.Repository;
 import com.project.tradingev_batter.Entity.Favorite_post;
 
 @Repository
-public interface Favorite_postRepository extends JpaRepository<Favorite_post,Long> {
+public interface FavoritePostRepository extends JpaRepository<Favorite_post,Long> {
 }

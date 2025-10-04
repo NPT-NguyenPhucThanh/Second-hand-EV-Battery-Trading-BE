@@ -2,8 +2,8 @@ package com.project.tradingev_batter.Repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import com.project.tradingev_batter.Entity.cart_items;
+import com.project.tradingev_batter.Entity.Refund;
 
 @Repository
-public interface Cart_itemsRepository extends JpaRepository<cart_items, Long> {
+public interface RefundRepository extends JpaRepository<Refund,Long> {
 }

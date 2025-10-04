@@ -1,9 +1,10 @@
 package com.project.tradingev_batter.Entity;
 
 import jakarta.persistence.*;
-
+import lombok.Data;
 import java.util.Date;
 
+@Data
 @Entity
 @Table(name = "message")
 public class Message {

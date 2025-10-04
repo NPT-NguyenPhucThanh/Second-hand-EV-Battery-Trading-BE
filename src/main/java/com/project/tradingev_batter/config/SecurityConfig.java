@@ -40,9 +40,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(withDefaults())  // Enable CORS (config below)
-                .csrf(csrf -> csrf.disable())  // Disable CSRF for API
+                .csrf(csrf -> csrf.disable())  // Disable CSRF for API, no sessions used
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()  // Public auth endpoints
+                        .requestMatchers("/api/auth/**").permitAll()  // Public auth endpoints, Login/Register
+                        .requestMatchers("/api/products/**").permitAll() //guest view products
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
                         .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
                         .requestMatchers("/api/client/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")

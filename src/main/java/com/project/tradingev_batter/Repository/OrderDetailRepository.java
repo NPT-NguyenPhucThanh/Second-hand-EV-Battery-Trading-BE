@@ -5,5 +5,5 @@ import org.springframework.stereotype.Repository;
 import com.project.tradingev_batter.Entity.Order_detail;
 
 @Repository
-public interface Order_detailRepository extends JpaRepository<Order_detail,Long> {
+public interface OrderDetailRepository extends JpaRepository<Order_detail,Long> {
 }

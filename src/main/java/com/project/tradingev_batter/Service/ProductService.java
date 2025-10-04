@@ -10,4 +10,7 @@ public interface ProductService {
     Product createProduct(Product product);
     Product updateProduct(Long id, Product product);
     void deleteProduct(Long id);
+    List<Product> searchAndFilterProducts(String type, String brand, Integer yearMin, Integer yearMax,
+                                          Double capacityMin, Double capacityMax, String status, Double priceMin, Double priceMax);
+    List<Product> getProductsBySeller(Long sellerId);
 }
