@@ -71,6 +71,10 @@ public class TradingevBatterApplication {
         User manager = new User();
         manager.setUsername("manager");
         manager.setPassword(passwordEncoder.encode("pass"));
+        manager.setPhone("0123456789");
+        manager.setDisplayname("admin");
+        manager.setUpdated_at(new Date());
+        manager.setDateofbirth(new Date());
         manager.setEmail("manager@email.com");
         manager.setCreated_at(new Date());
         manager.setIsactive(true);

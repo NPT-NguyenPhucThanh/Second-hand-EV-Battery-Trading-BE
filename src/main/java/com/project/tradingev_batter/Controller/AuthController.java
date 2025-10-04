@@ -1,9 +1,11 @@
 package com.project.tradingev_batter.Controller;
 
+import com.project.tradingev_batter.Entity.Role;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Repository.UserRepository;
 import com.project.tradingev_batter.dto.LoginRequest;
 import com.project.tradingev_batter.dto.RegisterRequest;
+import com.project.tradingev_batter.security.CustomUserDetails;
 import com.project.tradingev_batter.security.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +20,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -58,8 +64,10 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
-        String jwt = jwtService.generateToken(userDetails);
+        User user = userRepository.findByUsername(request.getUsername());
+        CustomUserDetails customUserDetails = new CustomUserDetails(user);
+        String jwt = jwtService.generateToken(customUserDetails);
+
         return ResponseEntity.ok(jwt);
     }
 

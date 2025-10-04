@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.security;
 
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -13,6 +14,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
@@ -28,15 +30,24 @@ public class JwtService {
     }
 
     public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("roles", userDetails.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()));
+        if (userDetails instanceof CustomUserDetails) {
+            CustomUserDetails myUser = (CustomUserDetails) userDetails;
+            extraClaims.put("email", myUser.getEmail());
+            extraClaims.put("displayname", myUser.getDisplayname());
+            extraClaims.put("isManager", myUser.isManager());
+            // Add other fields
+        }
+        return generateToken(extraClaims, userDetails);
     }
 
-    public String generateToken(Map<String, Object> claims, UserDetails userDetails) {
+    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return Jwts.builder()
-                .setClaims(claims)
+                .setClaims(extraClaims)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 24)) // 24 hours
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10hours
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
     }

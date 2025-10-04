@@ -26,7 +26,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter   {
         this.userDetailsService = userDetailsService;
     }
 
-    //@Override
+    //hàm callback của framework, mỗi request sẽ gọi hàm này 1 lần
+    @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
@@ -34,7 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter   {
             filterChain.doFilter(request, response);
             return;
         }
-        final String jwt = authHeader.substring(7);
+        final String jwt = authHeader.substring(7); //"Bearer ".length() = 7
         final String username = jwtService.extractUsername(jwt);
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
