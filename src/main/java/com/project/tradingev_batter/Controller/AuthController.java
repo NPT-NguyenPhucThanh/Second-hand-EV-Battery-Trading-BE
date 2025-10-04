@@ -44,9 +44,12 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()) != null) {
-            return ResponseEntity.badRequest().body("Username exists");
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "Username exists");
+            return ResponseEntity.badRequest().body(response);
         }
         User user = new User();
         user.setUsername(request.getUsername());
@@ -54,27 +57,38 @@ public class AuthController {
         user.setEmail(request.getEmail());
         user.setCreated_at(new Date());
         user.setIsactive(true);
-        // Add default role "CLIENT" (giả sử có method addRole)
         userRepository.save(user);
-        return ResponseEntity.ok("Registered");
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Registered");
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("created_at", user.getCreated_at());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
         User user = userRepository.findByUsername(request.getUsername());
         CustomUserDetails customUserDetails = new CustomUserDetails(user);
         String jwt = jwtService.generateToken(customUserDetails);
-
-        return ResponseEntity.ok(jwt);
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("token", jwt);
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("roles", user.getRoles().stream().map(Role::getRolename).collect(Collectors.toList()));
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout() {
-        // Stateless, client xóa token
-        return ResponseEntity.ok("Logged out");
+    public ResponseEntity<Map<String, Object>> logout() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Logged out");
+        return ResponseEntity.ok(response);
     }
-
 }

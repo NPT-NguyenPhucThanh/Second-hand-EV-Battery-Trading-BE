@@ -2,6 +2,7 @@ package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
+import com.project.tradingev_batter.dto.RefundRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class ManagerServiceImpl implements ManagerService {
     private final DisputeRepository disputeRepository;
     private final RoleRepository roleRepository;
     private final PackageServiceRepository packageServiceRepository;
+    private final RefundRepository refundRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
@@ -34,7 +36,9 @@ public class ManagerServiceImpl implements ManagerService {
                               OrderRepository orderRepository,
                               DisputeRepository disputeRepository,
                               RoleRepository roleRepository,
-                              PackageServiceRepository packageServiceRepository) {
+                              PackageServiceRepository packageServiceRepository,
+                              RefundRepository refundRepository) {
+        this.refundRepository = refundRepository;
         this.packageServiceRepository = packageServiceRepository;
         this.roleRepository = roleRepository;
         this.disputeRepository = disputeRepository;
@@ -149,7 +153,22 @@ public class ManagerServiceImpl implements ManagerService {
     public void approveOrder(Long orderId, boolean approved, String note) {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
-        order.setStatus(approved ? "DA_DUYET" : "BI_TU_CHOI");
+        if(approved){
+            order.setStatus("DA_DUYET");
+        } else {
+            order.setStatus("BI_TU_CHOI");
+            double depositeAmount = order.getTotalamount() * 0.1; //10% tiền cọc
+            processOrderRefundIfRejected(orderId, depositeAmount);
+//            //xử lý hoàn tiền
+//            List<Refund> existingRefunds = refundRepository.findByOrders(order);
+//            if(existingRefunds.isEmpty()) {
+//                Refund refund = new Refund();
+//                refund.setAmount(depositeAmount);
+//                refund.setReason("Đơn hàng bị từ chối");
+//                refund.setStatus("PENDING");
+//                refund.setOrders(order);
+//                refundRepository.save(refund);
+            }
         orderRepository.save(order);
 
         //tạo noti cho buyer
@@ -175,32 +194,134 @@ public class ManagerServiceImpl implements ManagerService {
     //cập nhật trạng thái đơn hàng sang DISPUTE_RESOLVED
     @Override
     @Transactional
-    public void resolveDispute(Long disputeId, String resolution) {
+        public void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest) {
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new RuntimeException("Dispute not found"));
         dispute.setStatus("RESOLVED");
         dispute.setResolution(resolution);
-        //dispute.setResolvedBy(getCurrentManager()); // Giả sử có phương thức lấy manager hiện tại
+        dispute.setManager(getCurrentManager()); // Giả sử có phương thức lấy manager hiện tại
         disputeRepository.save(dispute);
 
         //update order status
         Orders order = dispute.getOrder();
-        order.setStatus("DISPUTE_RESOLVED");
+        order.setStatus("DISPUTE_RESOLVED"); // Or "RESOLVED_WITH_REFUND" nếu refund
         orderRepository.save(order);
+
+        if (refundRequest != null && refundRequest.getAmount() > 0) {
+            Refund refund = new Refund();
+            refund.setAmount(refundRequest.getAmount());
+            refund.setReason(refundRequest.getReason() != null ? refundRequest.getReason() : resolution);
+            refund.setStatus(refundRequest.getStatus() != null ? refundRequest.getStatus() : "PENDING");
+            refund.setOrders(order);
+            refundRepository.save(refund);  // Auto createdat via @CreationTimestamp
+
+            order.setStatus("RESOLVED_WITH_REFUND");
+            orderRepository.save(order);  // Update lại order
+
+            // Noti với refund info
+            Notification refundNoti = new Notification();
+            refundNoti.setTitle("Tranh chấp được giải quyết với hoàn tiền");
+            refundNoti.setDescription("Số tiền hoàn: " + refundRequest.getAmount() + ". Lý do: " + resolution);
+            refundNoti.setUsers(order.getUsers());  // Buyer
+            notificationRepository.save(refundNoti);
+        }
 
         //tạo noti cho buyer
         Notification buyerNoti = new Notification();
         buyerNoti.setTitle("Tranh chấp đã được giải quyết");
-        buyerNoti.setDescription(resolution);
+        buyerNoti.setDescription(resolution + (refundRequest != null ? " (Có hoàn tiền)" : ""));
         buyerNoti.setUsers(order.getUsers());
         notificationRepository.save(buyerNoti);
 
         //tạo noti cho seller
+        User seller = order.getDetails().get(0).getProducts().getUsers();  // Lấy seller từ detail đầu
         Notification sellerNoti = new Notification();
         sellerNoti.setTitle("Tranh chấp đã được giải quyết");
         sellerNoti.setDescription(resolution);
-        sellerNoti.setUsers(order.getUsers());
+        sellerNoti.setUsers(seller);
         notificationRepository.save(sellerNoti);
+    }
+
+    //Xử lý hoàn tiền đơn hàng bị từ chối (10% tiền cọc)
+    //tạo refund với status "COMPLETED" (giả định auto-complete, integrate VnPay sau)
+    @Override
+    @Transactional
+    public void processOrderRefundIfRejected(Long orderId, double depositAmount) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        Refund refund = new Refund();
+        refund.setAmount(depositAmount);
+        refund.setReason("Từ chối đơn hàng - Hoàn cọc 10%");
+        refund.setStatus("COMPLETED");  // Giả định auto-complete, integrate VnPay sau
+        refund.setOrders(order);
+        refundRepository.save(refund);
+
+        // Noti
+        Notification noti = new Notification();
+        noti.setTitle("Hoàn tiền cọc");
+        noti.setDescription("Số tiền " + depositAmount + " đã được hoàn trả.");
+        noti.setUsers(order.getUsers());
+        notificationRepository.save(noti);
+    }
+
+    //Sản phẩm chờ nhập kho
+    @Override
+    @Transactional
+    public List<Product> getPendingWarehouseProducts() {
+        // Custom query: Products DA_DUYET nhưng !inWarehouse && type="Car EV"
+        return productRepository.findByTypeAndInWarehouse("Car EV", false);  // Reuse existing, filter status="DA_DUYET" nếu cần add query
+    }
+
+    //Xóa sản phẩm khỏi kho
+    //chỉ có product type "Car EV" mới được xóa khỏi kho
+    //khi xóa khỏi kho, set inWarehouse = false và status = "REMOVED_FROM_WAREHOUSE"
+    //tạo noti cho seller với reason
+    @Override
+    @Transactional
+    public void removeFromWarehouse(Long productId, String reason) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        if (!product.getInWarehouse()) {
+            throw new RuntimeException("Product not in warehouse");
+        }
+        if (!"Car EV".equals(product.getType())) {
+            throw new RuntimeException("Only Car EV products can be removed from warehouse");
+        }
+        product.setInWarehouse(false);
+        product.setStatus("REMOVED_FROM_WAREHOUSE");  // Update status
+        productRepository.save(product);
+
+        // Noti seller
+        User seller = product.getUsers();
+        Notification noti = new Notification();
+        noti.setTitle("Sản phẩm đã được gỡ khỏi kho");
+        noti.setDescription("Lý do: " + reason);
+        noti.setUsers(seller);
+        notificationRepository.save(noti);
+    }
+
+    //Cập nhật trạng thái kho
+    //ví dụ: "READY", "SHIPPED", "MAINTENANCE"
+    //nếu trạng thái là "SHIPPED" -> tạo noti cho seller
+    @Override
+    @Transactional
+    public void updateWarehouseStatus(Long productId, String newStatus) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        if (!product.getInWarehouse()) {
+            throw new RuntimeException("Product not in warehouse");
+        }
+        product.setStatus(newStatus);  //"READY", "SHIPPED", "MAINTENANCE"
+        productRepository.save(product);
+
+        // Noti nếu cần (SHIPPED → seller)
+        if ("SHIPPED".equals(newStatus)) {
+            User seller = product.getUsers();
+            Notification noti = new Notification();
+            noti.setTitle("Sản phẩm đã được vận chuyển khỏi kho");
+            noti.setUsers(seller);
+            notificationRepository.save(noti);
+        }
     }
 
     private User getCurrentManager() {

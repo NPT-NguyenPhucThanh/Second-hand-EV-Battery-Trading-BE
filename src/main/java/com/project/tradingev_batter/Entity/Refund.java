@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.util.Date;
 
@@ -27,6 +28,7 @@ public class Refund {
     @Column(name = "status")
     private String status;
 
+    @CreationTimestamp //auto save current timestamp
     @Column(name = "createdat")
     private Date createdat;
 
