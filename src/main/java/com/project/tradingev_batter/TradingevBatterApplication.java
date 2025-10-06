@@ -177,13 +177,13 @@ public class TradingevBatterApplication {
 
         // Seed product (link brand, seller)
         Product product = new Product();
-        product.setProductname("Pin EV");
-        product.setDescription("Pin cũ tốt");
+        product.setProductname("Car EV");
+        product.setDescription("Car cũ tốt");
         product.setCost(5000000.0);
         product.setAmount(5);
         product.setStatus("DA_DUYET");
         product.setModel("Model1");
-        product.setType("Battery");
+        product.setType("Car EV");
         product.setSpecs("Specs here");
         product.setCreatedat(new Date());
         product.setUpdatedat(new Date());

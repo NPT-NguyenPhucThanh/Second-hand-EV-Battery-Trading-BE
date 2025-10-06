@@ -13,4 +13,5 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
     double getTotalSales();
     @Query("SELECT FUNCTION('MONTH', o.createdat), COUNT(o) FROM Orders o GROUP BY FUNCTION('MONTH', o.createdat)")
     List<Object[]> getOrdersByMonth();
+    List<Orders> getOrdersByUserid(long userid);
 }
