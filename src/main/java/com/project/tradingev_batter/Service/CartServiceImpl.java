@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -21,6 +22,7 @@ public class CartServiceImpl implements CartService {
     private CartItemRepository cartItemsRepository;
 
     @Override
+    @Transactional
     public void addToCart(long productId, long userid, int quantity) throws Exception {
         User user = userRepository.findByUserid(userid);
         Product product = productRepository.findProductByProductid(productId);
@@ -58,6 +60,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public void updateCartItem(long productId, long userid, int quantity) throws Exception {
         User user = userRepository.findByUserid(userid);
         if (user == null) throw new Exception("User not found");
@@ -80,6 +83,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional
     public void removeCartItem(long productId, long userid) throws Exception {
         User user = userRepository.findByUserid(userid);
         if (user == null) throw new Exception("User not found");

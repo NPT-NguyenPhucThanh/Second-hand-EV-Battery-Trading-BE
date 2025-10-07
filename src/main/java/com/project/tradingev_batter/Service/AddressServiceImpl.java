@@ -6,6 +6,7 @@ import com.project.tradingev_batter.Repository.AddressRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -27,6 +28,7 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    @Transactional
     public Address addAddress(long userid, Address address) {
         User user = userRepository.findByUserid(userid);
         if (user == null) {
@@ -38,9 +40,10 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    @Transactional
     public Address updateAddress(long userid, long addressId, Address newAddress) throws Exception {
         User user = userRepository.findByUserid(userid);
-        Address existingAddress = addressRepository.findByAddressId(addressId);
+        Address existingAddress = addressRepository.findByAddressid(addressId);
 
         if (user == null) {
             throw new RuntimeException("User not found with ID: " + userid);
@@ -60,9 +63,10 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    @Transactional
     public void deleteAddress(long userid, long addressId) throws Exception {
         User user = userRepository.findByUserid(userid);
-        Address existingAddress = addressRepository.findByAddressId(addressId);
+        Address existingAddress = addressRepository.findByAddressid(addressId);
 
         if (user == null) {
             throw new RuntimeException("User not found with ID: " + userid);

@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -49,6 +50,7 @@ public class ClientServiceImpl implements ClientService {
     }
 
     @Override
+    @Transactional
     public boolean updateProfile(long userid, User updatedUser) {
         User existingUser = userRepository.findByUserid(userid);
         if (existingUser != null) {
@@ -64,6 +66,7 @@ public class ClientServiceImpl implements ClientService {
     }
 
     @Override
+    @Transactional
     public boolean changePassword(long userid, String oldPassword, String newPassword) {
         User user = userRepository.findByUserid(userid);
         if (user != null) {
@@ -78,6 +81,7 @@ public class ClientServiceImpl implements ClientService {
 
 
     @Override
+    @Transactional
     public boolean changeEmail(long userid, String newEmail) {
         User user = userRepository.findByUserid(userid);
         if (user != null) {
