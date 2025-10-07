@@ -311,7 +311,7 @@ public class TradingevBatterApplication {
 
         // Seed product_img (link product)
         product_img img = new product_img();
-        img.setUrl("img	url.com");
+        img.setUrl("D:\\school\\SWP\\img\\xe1.png");
         img.setProducts(product);
         productImgRepository.save(img);
 
