@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.Notification;
 import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.dto.RefundRequest;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +26,9 @@ public interface ManagerService {
 
     void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest);
 
-    void approveSellerUpgrade(Long userId, boolean approved); //Quản lý tài khoản người dùng
+    // Seller Upgrade - Cập nhật signature
+    void approveSellerUpgrade(Long userId, boolean approved, String rejectionReason);
+    List<User> getPendingSellerUpgradeRequests(); // Danh sách yêu cầu pending
 
     void lockUser(Long userId, boolean lock); //Khóa/Mở khóa tài khoản người dùng
 

@@ -47,21 +47,24 @@ public class User {
     @Column(name = "updated_at")
     private Date updated_at;
 
-    // Fields cho Seller Upgrade Request (FE-22, FE-23)
-    @Column(name = "seller_request_status")
-    private String sellerRequestStatus; // "PENDING", "APPROVED", "REJECTED", null
+    // Thông tin nâng cấp lên Seller
+    @Column(name = "seller_upgrade_status")
+    private String sellerUpgradeStatus; // "PENDING", "APPROVED", "REJECTED", null (chưa yêu cầu)
 
-    @Column(name = "id_card_url")
-    private String idCardUrl; // URL ảnh CCCD
+    @Column(name = "seller_upgrade_request_date")
+    private Date sellerUpgradeRequestDate;
 
-    @Column(name = "vehicle_documents_url")
-    private String vehicleDocumentsUrl; // URL giấy tờ xe
+    @Column(name = "cccd_front_url")
+    private String cccdFrontUrl; // URL ảnh CCCD mặt trước
 
-    @Column(name = "request_date")
-    private Date requestDate;
+    @Column(name = "cccd_back_url")
+    private String cccdBackUrl; // URL ảnh CCCD mặt sau
 
-    @Column(name = "approved_date")
-    private Date approvedDate;
+    @Column(name = "vehicle_registration_url")
+    private String vehicleRegistrationUrl; // URL giấy tờ xe (nếu có)
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason; // Lý do từ chối nếu bị reject
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

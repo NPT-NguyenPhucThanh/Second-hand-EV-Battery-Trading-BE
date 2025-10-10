@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.Notification;
 import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.ManagerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,7 +11,9 @@ import com.project.tradingev_batter.dto.ApprovalRequest;
 import com.project.tradingev_batter.dto.LockRequest;
 import com.project.tradingev_batter.Repository.PackageServiceRepository;
 import com.project.tradingev_batter.dto.RefundRequest;
+import com.project.tradingev_batter.dto.SellerUpgradeApprovalRequest;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +63,7 @@ public class ManagerController {
         return ResponseEntity.ok("Order processed");
     }
 
+    @SuppressWarnings("unchecked")
     @PostMapping("/disputes/{disputeId}/resolve")
     public ResponseEntity<String> resolveDispute(@PathVariable Long disputeId, @RequestBody Map<String, Object> request) {
         String resolution = (String) request.get("resolution");
@@ -75,10 +79,41 @@ public class ManagerController {
         return ResponseEntity.ok("Dispute resolved" + (refundRequest != null ? " with refund" : ""));
     }
 
-    @PostMapping("/users/{userId}/approve-seller")
-    public ResponseEntity<String> approveSeller(@PathVariable Long userId, @RequestBody ApprovalRequest request) {
-        managerService.approveSellerUpgrade(userId, request.isApproved());
-        return ResponseEntity.ok("Seller upgrade processed");
+    //Lấy danh sách yêu cầu nâng cấp
+    @GetMapping("/seller-upgrade/requests")
+    public ResponseEntity<Map<String, Object>> getPendingSellerUpgradeRequests() {
+        List<User> pendingRequests = managerService.getPendingSellerUpgradeRequests();
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalRequests", pendingRequests.size());
+        response.put("requests", pendingRequests.stream().map(user -> Map.of(
+                "userId", user.getUserid(),
+                "username", user.getUsername(),
+                "email", user.getEmail(),
+                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                "requestDate", user.getSellerUpgradeRequestDate(),
+                "cccdFrontUrl", user.getCccdFrontUrl(),
+                "cccdBackUrl", user.getCccdBackUrl(),
+                "vehicleRegistrationUrl", user.getVehicleRegistrationUrl() != null ? user.getVehicleRegistrationUrl() : "N/A"
+        )).toList());
+        
+        return ResponseEntity.ok(response);
+    }
+
+    //Xét duyệt yêu cầu nâng cấp
+    @PostMapping("/seller-upgrade/{userId}/approve")
+    public ResponseEntity<Map<String, Object>> approveSellerUpgradeRequest(
+            @PathVariable Long userId, 
+            @RequestBody SellerUpgradeApprovalRequest request) {
+        
+        managerService.approveSellerUpgrade(userId, request.isApproved(), request.getRejectionReason());
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", request.isApproved() ? "Yêu cầu đã được chấp nhận" : "Yêu cầu đã bị từ chối");
+        
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/users/{userId}/lock")

@@ -338,27 +338,51 @@ public class ManagerServiceImpl implements ManagerService {
     }
 
     //Duyệt nâng cấp tài khoản seller
-    //nếu approved = true -> thêm role SELLER cho user
+    //nếu approved = true -> thêm role SELLER cho user và cập nhật status
+    //nếu approved = false -> cập nhật status và lưu lý do từ chối
     @Override
     @Transactional
-    public void approveSellerUpgrade(Long sellerId, boolean approved) {
-        User seller = userRepository.findById(sellerId)
-                .orElseThrow(() -> new RuntimeException("Seller not found"));
-        if(approved) {
+    public void approveSellerUpgrade(Long userId, boolean approved, String rejectionReason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (approved) {
+            // Thêm role SELLER cho user
             Role sellerRole = roleRepository.findByRolename("SELLER");
-            if(sellerRole == null) {
+            if (sellerRole == null) {
                 throw new RuntimeException("SELLER role not found");
             }
-            seller.getRoles().add(sellerRole);
-        }
-        userRepository.save(seller);
+            user.getRoles().add(sellerRole);
+            user.setSellerUpgradeStatus("APPROVED");
+            user.setRejectionReason(null); // Clear rejection reason nếu có
 
-        //tạo noti cho seller
-        Notification notification = new Notification();
-        notification.setTitle(approved ? "Nâng cấp tài khoản thành công" : "Nâng cấp tài khoản thất bại");
-        notification.setDescription(approved ? "Bạn giờ là seller." : "Yêu cầu bị từ chối.");
-        notification.setUsers(seller);
-        notificationRepository.save(notification);
+            // Tạo notification cho user
+            Notification notification = new Notification();
+            notification.setTitle("Nâng cấp tài khoản thành công");
+            notification.setDescription("Chúc mừng! Bạn đã trở thành Seller. Giờ bạn có thể đăng bán sản phẩm.");
+            notification.setUsers(user);
+            notificationRepository.save(notification);
+        } else {
+            // Từ chối yêu cầu
+            user.setSellerUpgradeStatus("REJECTED");
+            user.setRejectionReason(rejectionReason != null ? rejectionReason : "Không đủ điều kiện");
+
+            // Tạo notification cho user
+            Notification notification = new Notification();
+            notification.setTitle("Yêu cầu nâng cấp bị từ chối");
+            notification.setDescription("Lý do: " + user.getRejectionReason());
+            notification.setUsers(user);
+            notificationRepository.save(notification);
+        }
+
+        userRepository.save(user);
+    }
+
+    //Lấy danh sách yêu cầu nâng cấp seller đang chờ duyệt
+    @Override
+    @Transactional
+    public List<User> getPendingSellerUpgradeRequests() {
+        return userRepository.findBySellerUpgradeStatus("PENDING");
     }
 
     //Khóa/Mở khóa tài khoản người dùng

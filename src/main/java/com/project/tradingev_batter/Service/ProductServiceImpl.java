@@ -40,6 +40,12 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
     }
 
+    /**
+     * INTERNAL USE ONLY - Tạo product cơ bản không kiểm tra gói
+     * CHÚ Ý!!!!!!!!!!!!!!: Method này chỉ dùng cho internal logic hoặc Manager/Admin
+     * SELLER PHẢI DÙNG SellerService.createCarProduct() hoặc createBatteryProduct()
+     * để có kiểm tra gói đầy đủ (BR-19)
+     */
     @Override
     @Transactional
     public Product createProduct(Product product) {
