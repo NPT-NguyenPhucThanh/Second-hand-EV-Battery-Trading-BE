@@ -48,6 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
                         
+                        // === WEBSOCKET ENDPOINTS ===
+                        .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
+                        
                         // === MANAGER ENDPOINTS ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
                         
@@ -57,6 +60,9 @@ public class SecurityConfig {
                         // === CLIENT/BUYER ENDPOINTS ===
                         .requestMatchers("/api/client/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
                         .requestMatchers("/api/buyer/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
+                        
+                        // === CHAT ENDPOINTS ===
+                        .requestMatchers("/api/chat/**").authenticated()
                         
                         // Tất cả các request khác cần authenticated
                         .anyRequest().authenticated()
@@ -70,7 +76,6 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-
         return new BCryptPasswordEncoder();
     }
 

@@ -1,17 +1,22 @@
 package com.project.tradingev_batter.Entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.Date;
 
 @Data
 @Entity
 @Table(name = "message")
+@NoArgsConstructor
+@AllArgsConstructor
 public class Message {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "messid")
-    private long messid;
+    private Long messid;
 
     @Column(name = "text")
     private String text;
@@ -19,12 +24,22 @@ public class Message {
     @Column(name = "attachUrl")
     private String attachUrl;
 
+    @Column(name = "message_type")
+    private String messageType; // TEXT, IMAGE, FILE
+
+    @Column(name = "is_read")
+    private boolean isRead; // Đã đọc chưa
+
     @Column(name = "createdat")
     private Date createdat;
 
     @ManyToOne
     @JoinColumn(name = "roomid")
-    private Chatroom  chatroom;
+    private Chatroom chatroom;
+
+    @ManyToOne
+    @JoinColumn(name = "sender_id") // Người gửi (có thể là buyer hoặc seller)
+    private User sender;
 
     @ManyToOne
     @JoinColumn(name = "buyerid")

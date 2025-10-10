@@ -100,7 +100,7 @@ public class TradingevBatterApplication {
     public void seedData() {
         // Seed roles
         Role clientRole = new Role();
-        clientRole.setRolename("CLIENT");
+        clientRole.setRolename("BUYER");
         clientRole.setJoindate(new Date());
         roleRepository.save(clientRole);
 
@@ -116,9 +116,9 @@ public class TradingevBatterApplication {
 
         // Seed user client
         User client = new User();
-        client.setUsername("client");
-        client.setPassword(passwordEncoder.encode("pass"));
-        client.setEmail("client@email.com");
+        client.setUsername("buyer");
+        client.setPassword(passwordEncoder.encode("buyer"));
+        client.setEmail("buyer@email.com");
         client.setCreated_at(new Date());
         client.setIsactive(true);
         Set<Role> clientRoles = new HashSet<>();
