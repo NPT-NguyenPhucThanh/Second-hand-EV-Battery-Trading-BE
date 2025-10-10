@@ -16,14 +16,20 @@ public class Brandcars {
     @Column(name = "carid")
     private long carid;
 
+    @Column(name = "brand")
+    private String brand; // Hãng xe
+
     @Column(name = "year")
     private int year;
 
+    @Column(name = "license_plate")
+    private String licensePlate; // Biển số xe
+
     @Column(name = "odo")
-    private double odo;
+    private double odo; // Số km đã đi
 
     @Column(name = "capacity")
-    private double capacity;
+    private double capacity; // Dung tích pin
 
     @Column(name = "color")
     private String color;

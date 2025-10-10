@@ -27,6 +27,7 @@ public class ImageUploadService {
      * @throws IOException Nếu upload fail
      */
     public String uploadImage(MultipartFile file, String folder) throws IOException {
+        System.out.println("Starting upload for file: " + file.getOriginalFilename() + ", size: " + file.getSize() + " bytes");
         //Validate file
         if (file == null || file.isEmpty()) {
             throw new IOException("File is empty");
@@ -55,8 +56,15 @@ public class ImageUploadService {
                         .quality("auto:good")  // Auto quality
         );
 
-        Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
-        return (String) uploadResult.get("secure_url");
+        try {
+            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
+            String url = (String) uploadResult.get("secure_url");
+            System.out.println("Cloudinary upload success - URL: " + url);
+            return url;
+        } catch (IOException e) {
+            System.err.println("Cloudinary API fail: " + e.getMessage());
+            throw e;
+        }
     }
 
     //Delete image by public_id (từ URL extract)

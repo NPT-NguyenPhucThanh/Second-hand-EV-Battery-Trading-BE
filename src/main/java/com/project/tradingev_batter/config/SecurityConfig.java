@@ -39,28 +39,38 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(withDefaults())  // Enable CORS (config below)
-                .csrf(csrf -> csrf.disable())  // Disable CSRF for API, no sessions used
+                .cors(withDefaults())
+                .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()  // Public auth endpoints, Login/Register
-                        .requestMatchers("/api/products/**").permitAll() //guest view products
+                        // === PUBLIC ENDPOINTS (GUEST) ===
+                        .requestMatchers("/api/auth/**").permitAll()
+                        // Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm
+                        .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
+                        
+                        // === MANAGER ENDPOINTS ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
+                        
+                        // === SELLER ENDPOINTS ===
                         .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
+                        
+                        // === CLIENT/BUYER ENDPOINTS ===
                         .requestMatchers("/api/client/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
+                        .requestMatchers("/api/buyer/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
+                        
+                        // Tất cả các request khác cần authenticated
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+
         return new BCryptPasswordEncoder();
     }
 
@@ -80,8 +90,8 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*"));  // Adjust for your FE
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173")); // FE URLs
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

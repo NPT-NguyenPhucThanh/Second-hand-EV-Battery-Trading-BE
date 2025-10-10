@@ -12,10 +12,13 @@ import com.project.tradingev_batter.dto.ProductDetailResponse;
 import com.project.tradingev_batter.dto.ProductRequest;
 import com.project.tradingev_batter.dto.SellerInfoResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.project.tradingev_batter.Entity.product_img;
+import org.springframework.web.bind.annotation.RequestPart;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Date;
@@ -34,6 +37,8 @@ public class ProductController {
 
     @Autowired
     private ProductImgRepository productImgRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ProductController(ProductService productService, FeedbackService feedbackService, UserService userService) {
         this.productService = productService;
@@ -77,68 +82,91 @@ public class ProductController {
     }
 
     // Create product with optional images
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Product> createProduct(
-            @ModelAttribute ProductRequest productRequest,
+            @RequestParam("productname") String productname,
+            @RequestParam("description") String description,
+            @RequestParam("cost") double cost,
+            @RequestParam("amount") int amount,
+            @RequestParam("status") String status,
+            @RequestParam("model") String model,
+            @RequestParam("type") String type,
+            @RequestParam("specs") String specs,
             @RequestParam(value = "images", required = false) MultipartFile[] images) {
 
         // Convert DTO to Entity
         Product product = new Product();
-        product.setProductname(productRequest.getProductname());
-        product.setDescription(productRequest.getDescription());
-        product.setCost(productRequest.getCost());
-        product.setAmount(productRequest.getAmount());
-        product.setStatus(productRequest.getStatus());
-        product.setModel(productRequest.getModel());
-        product.setType(productRequest.getType());
-        product.setSpecs(productRequest.getSpecs());
+        product.setProductname(productname);
+        product.setDescription(description);
+        product.setCost(cost);
+        product.setAmount(amount);
+        product.setStatus(status);
+        product.setModel(model);
+        product.setType(type);
+        product.setSpecs(specs);
         product.setCreatedat(new Date());
 
         Product savedProduct = productService.createProduct(product);
 
         // Upload images if provided
         if (images != null && images.length > 0) {
+            System.out.println("Uploading " + images.length + " images for product " + savedProduct.getProductid());  // Log check if trigger
             uploadImagesForProduct(savedProduct, images);
+        } else {
+            System.out.println("No images provided");  // Log if no files
         }
+
+        savedProduct = productService.getProductById(savedProduct.getProductid());
 
         return ResponseEntity.ok(savedProduct);
     }
 
     // Update product with optional new images
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Product> updateProduct(
             @PathVariable Long id,
-            @ModelAttribute ProductRequest productRequest,
+            @RequestParam("productname") String productname,
+            @RequestParam("description") String description,
+            @RequestParam("cost") double cost,
+            @RequestParam("amount") int amount,
+            @RequestParam("status") String status,
+            @RequestParam("model") String model,
+            @RequestParam("type") String type,
+            @RequestParam("specs") String specs,
             @RequestParam(value = "images", required = false) MultipartFile[] images) {
 
         // Convert DTO to Entity
         Product product = new Product();
-        product.setProductname(productRequest.getProductname());
-        product.setDescription(productRequest.getDescription());
-        product.setCost(productRequest.getCost());
-        product.setAmount(productRequest.getAmount());
-        product.setStatus(productRequest.getStatus());
-        product.setModel(productRequest.getModel());
-        product.setType(productRequest.getType());
-        product.setSpecs(productRequest.getSpecs());
+        product.setProductname(productname);
+        product.setDescription(description);
+        product.setCost(cost);
+        product.setAmount(amount);
+        product.setStatus(status);
+        product.setModel(model);
+        product.setType(type);
+        product.setSpecs(specs);
 
         Product updatedProduct = productService.updateProduct(id, product);
 
         // Upload new images if provided
         if (images != null && images.length > 0) {
+            System.out.println("Uploading " + images.length + " images for update product " + id);
             uploadImagesForProduct(updatedProduct, images);
         }
+
+        updatedProduct = productService.getProductById(id);
 
         return ResponseEntity.ok(updatedProduct);
     }
 
     // Separate endpoint for uploading images to existing product
-    @PostMapping("/{id}/images")
+    @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> uploadProductImages(
             @PathVariable Long id,
             @RequestParam("images") MultipartFile[] images) {
 
         Product product = productService.getProductById(id);
+        System.out.println("Uploading separate " + images.length + " images for product " + id);  // Log
         int uploadedCount = uploadImagesForProduct(product, images);
 
         return ResponseEntity.ok("Successfully uploaded " + uploadedCount + " images");
@@ -161,8 +189,9 @@ public class ProductController {
                 img.setProducts(product);
                 productImgRepository.save(img);
                 uploadedCount++;
+                System.out.println("Saved img URL: " + url);  // Log per image
             } catch (IOException e) {
-                throw new RuntimeException("Upload failed for image: " + e.getMessage());
+                System.err.println("Upload fail for " + image.getOriginalFilename() + ": " + e.getMessage());  // Log error
             }
         }
         return uploadedCount;

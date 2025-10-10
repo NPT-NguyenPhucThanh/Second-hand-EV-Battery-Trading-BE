@@ -64,4 +64,9 @@ public class CustomUserDetails implements UserDetails {
     public boolean isManager() {
         return getAuthorities().stream().anyMatch(auth -> auth.getAuthority().equals("ROLE_MANAGER"));
     }
+
+    // Getter cho User entity
+    public User getUser() {
+        return user;
+    }
 }

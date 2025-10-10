@@ -18,7 +18,7 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "userid", nullable = false)
-    private long userid;
+    private Long userid;
 
     @Column(name = "username", nullable = false)
     private String username;
@@ -46,6 +46,22 @@ public class User {
 
     @Column(name = "updated_at")
     private Date updated_at;
+
+    // Fields cho Seller Upgrade Request (FE-22, FE-23)
+    @Column(name = "seller_request_status")
+    private String sellerRequestStatus; // "PENDING", "APPROVED", "REJECTED", null
+
+    @Column(name = "id_card_url")
+    private String idCardUrl; // URL ảnh CCCD
+
+    @Column(name = "vehicle_documents_url")
+    private String vehicleDocumentsUrl; // URL giấy tờ xe
+
+    @Column(name = "request_date")
+    private Date requestDate;
+
+    @Column(name = "approved_date")
+    private Date approvedDate;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -80,7 +96,7 @@ public class User {
     private List<Feedback> feedbacks = new ArrayList<>();
 
     @OneToMany(mappedBy = "users")
-    private List<Post> posts = new ArrayList<>();;
+    private List<Post> posts = new ArrayList<>();
 
     @OneToMany(mappedBy = "userReviewed")
     private List<Post> userReviewed = new ArrayList<>();

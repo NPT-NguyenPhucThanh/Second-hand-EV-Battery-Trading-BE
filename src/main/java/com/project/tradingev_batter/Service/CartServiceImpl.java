@@ -1,102 +1,147 @@
 package com.project.tradingev_batter.Service;
 
-import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.project.tradingev_batter.Entity.Carts;
+import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.cart_items;
+import com.project.tradingev_batter.Repository.CartItemRepository;
+import com.project.tradingev_batter.Repository.CartsRepository;
+import com.project.tradingev_batter.Repository.ProductRepository;
+import com.project.tradingev_batter.Repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CartServiceImpl implements CartService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final CartsRepository cartsRepository;
+    private final CartItemRepository cartItemRepository;
+    private final UserRepository userRepository;
+    private final ProductRepository productRepository;
 
-    @Autowired
-    private ProductRepository productRepository;
-
-    @Autowired
-    private CartItemRepository cartItemsRepository;
+    public CartServiceImpl(CartsRepository cartsRepository,
+                          CartItemRepository cartItemRepository,
+                          UserRepository userRepository,
+                          ProductRepository productRepository) {
+        this.cartsRepository = cartsRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+    }
 
     @Override
     @Transactional
-    public void addToCart(long productId, long userid, int quantity) throws Exception {
-        User user = userRepository.findByUserid(userid);
-        Product product = productRepository.findProductByProductid(productId);
-
-        if (user == null) throw new Exception("User not found");
-        if (product == null) throw new Exception("Product not found");
-
-        Carts cart = user.getCarts();
-        if (cart == null) throw new Exception("Cart not found for user");
-
-        cart_items existingItem = cartItemsRepository.findByCartsAndProducts(cart, product);
-
-        if (existingItem != null) {
-            existingItem.setQuantity(existingItem.getQuantity() + quantity);
-            existingItem.setAddedat(new Date());
-            cartItemsRepository.save(existingItem);
+    public cart_items addToCart(Long userId, Long productId, int quantity) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        
+        // Kiểm tra sản phẩm có đang bán không
+        if (!"DANG_BAN".equals(product.getStatus()) && !"DA_DUYET".equals(product.getStatus())) {
+            throw new RuntimeException("Sản phẩm không khả dụng để mua");
+        }
+        
+        // Lấy hoặc tạo cart
+        Carts cart = cartsRepository.findByUsers(user);
+        if (cart == null) {
+            cart = new Carts();
+            cart.setUsers(user);
+            cart.setCreatedat(new Date());
+            cart = cartsRepository.save(cart);
+        }
+        
+        // Kiểm tra xem sản phẩm đã có trong giỏ chưa
+        Optional<cart_items> existingItem = cart.getCart_items().stream()
+                .filter(item -> item.getProducts().getProductid() == productId)
+                .findFirst();
+        
+        if (existingItem.isPresent()) {
+            // Cập nhật số lượng
+            cart_items item = existingItem.get();
+            item.setQuantity(item.getQuantity() + quantity);
+            return cartItemRepository.save(item);
         } else {
+            // Thêm mới
             cart_items newItem = new cart_items();
-            newItem.setUsers(user);
+            newItem.setCarts(cart);
             newItem.setProducts(product);
+            newItem.setUsers(user);
             newItem.setQuantity(quantity);
             newItem.setAddedat(new Date());
-            newItem.setCarts(cart);
-            cartItemsRepository.save(newItem);
+            return cartItemRepository.save(newItem);
         }
     }
 
     @Override
-    public List<cart_items> viewCart(long userid) {
-        User user = userRepository.findByUserid(userid);
-        if (user == null || user.getCarts() == null) {
-            throw new RuntimeException("User or Cart not found");
+    public Carts getCart(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Carts cart = cartsRepository.findByUsers(user);
+        if (cart == null) {
+            // Tạo cart mới nếu chưa có
+            cart = new Carts();
+            cart.setUsers(user);
+            cart.setCreatedat(new Date());
+            cart = cartsRepository.save(cart);
         }
-        return user.getCarts().getCart_items();
+        
+        return cart;
     }
 
     @Override
     @Transactional
-    public void updateCartItem(long productId, long userid, int quantity) throws Exception {
-        User user = userRepository.findByUserid(userid);
-        if (user == null) throw new Exception("User not found");
+    public void removeFromCart(Long userId, Long itemId) {
+        cart_items item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Cart item not found"));
+        
+        // Kiểm tra quyền sở hữu
+        if (item.getUsers().getUserid() != userId) {
+            throw new RuntimeException("Bạn không có quyền xóa item này");
+        }
+        
+        cartItemRepository.delete(item);
+    }
 
-        Carts cart = user.getCarts();
-        if (cart == null) throw new Exception("Cart not found");
-
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new Exception("Product not found"));
-
-        cart_items cartItem = cartItemsRepository.findByCartsAndProducts(cart, product);
-        if (cartItem == null) throw new Exception("Cart item not found");
-
+    @Override
+    @Transactional
+    public cart_items updateCartItemQuantity(Long userId, Long itemId, int quantity) {
+        cart_items item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Cart item not found"));
+        
+        // Kiểm tra quyền sở hữu
+        if (item.getUsers().getUserid() != userId) {
+            throw new RuntimeException("Bạn không có quyền cập nhật item này");
+        }
+        
         if (quantity <= 0) {
-            cartItemsRepository.delete(cartItem);
-        } else {
-            cartItem.setQuantity(quantity);
-            cartItemsRepository.save(cartItem);
+            throw new RuntimeException("Số lượng phải lớn hơn 0");
         }
+        
+        item.setQuantity(quantity);
+        return cartItemRepository.save(item);
+    }
+
+    @Override
+    public double calculateCartTotal(Long userId) {
+        Carts cart = getCart(userId);
+        
+        return cart.getCart_items().stream()
+                .mapToDouble(item -> item.getProducts().getCost() * item.getQuantity())
+                .sum();
     }
 
     @Override
     @Transactional
-    public void removeCartItem(long productId, long userid) throws Exception {
-        User user = userRepository.findByUserid(userid);
-        if (user == null) throw new Exception("User not found");
-
-        Carts cart = user.getCarts();
-        if (cart == null) throw new Exception("Cart not found");
-
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new Exception("Product not found"));
-
-        cart_items cartItem = cartItemsRepository.findByCartsAndProducts(cart, product);
-        if (cartItem == null) throw new Exception("Cart item not found");
-
-        cartItemsRepository.delete(cartItem);
+    public void clearCart(Long userId) {
+        Carts cart = getCart(userId);
+        cartItemRepository.deleteAll(cart.getCart_items());
+        cart.setUpdatedat(new Date());
+        cartsRepository.save(cart);
     }
 }
