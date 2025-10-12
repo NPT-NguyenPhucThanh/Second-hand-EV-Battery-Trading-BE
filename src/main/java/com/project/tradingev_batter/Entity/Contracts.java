@@ -28,10 +28,10 @@ public class Contracts {
     private Date signedbySeller;
 
     @Column(name = "signedMethod")
-    private String signedMethod;
+    private String signedMethod; // "DOCUSEAL"
 
     @Column(name = "contractFile")
-    private String contractFile;
+    private String contractFile; // URL file hợp đồng PDF
 
     @Column(name = "startDate")
     private Date startDate;
@@ -40,7 +40,20 @@ public class Contracts {
     private Date endDate;
 
     @Column(name = "status")
-    private boolean status;
+    private boolean status; // true = đã ký, false = chờ ký
+
+    // DocuSeal Integration Fields
+    @Column(name = "docuseal_submission_id")
+    private String docusealSubmissionId; // ID submission từ DocuSeal
+
+    @Column(name = "docuseal_document_url")
+    private String docusealDocumentUrl; // URL document đã ký từ DocuSeal
+
+    @Column(name = "seller_signed_at")
+    private Date sellerSignedAt; // Thời gian seller ký
+
+    @Column(name = "contract_type")
+    private String contractType; // "PRODUCT_LISTING" (đăng bán) hoặc "SALE_TRANSACTION" (mua bán)
 
     @ManyToOne
     @JoinColumn(name = "orderid")

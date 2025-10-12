@@ -9,6 +9,5 @@ import java.util.List;
 
 @Repository
 public interface UserPackageRepository extends JpaRepository<UserPackage, Long> {
-    List<UserPackage> findByUser(User user);
     List<UserPackage> findByUser_UseridOrderByExpiryDateDesc(Long userId);
 }

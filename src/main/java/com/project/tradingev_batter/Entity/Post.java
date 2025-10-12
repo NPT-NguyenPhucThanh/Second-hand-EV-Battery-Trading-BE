@@ -39,7 +39,7 @@ public class Post {
     private List<Comment> comments = new ArrayList<>();
 
     @OneToOne
-    @JoinColumn(name = "posts")
+    @JoinColumn(name = "products") //ban đầu ở đây để sai là name = "posts"
     private Product products;
 
     @ManyToOne

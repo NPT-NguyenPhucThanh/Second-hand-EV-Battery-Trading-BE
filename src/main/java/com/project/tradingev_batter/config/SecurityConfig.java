@@ -51,6 +51,11 @@ public class SecurityConfig {
                         // === WEBSOCKET ENDPOINTS ===
                         .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
                         
+                        // === DOCUSEAL WEBHOOK (MUST BE PUBLIC) ===
+                        .requestMatchers("/api/docuseal/webhook").permitAll() // DocuSeal callback
+                        .requestMatchers("/api/docuseal/**").permitAll()  // Public cho toàn bộ webhook
+                        .requestMatchers("/api/docuseal/webhook/test").permitAll()  //cụ thể cho /test
+                        
                         // === MANAGER ENDPOINTS ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
                         

@@ -12,7 +12,6 @@ public interface ProductRepository extends JpaRepository<Product,Long> {
     List<Product> findByTypeAndInWarehouse(String type, boolean inWarehouse);
     List<Product> findByUsers(User user);
     List<Product> findByUsers_Userid(Long userId);
-    Product findProductByProductid(long productId);
 
     @Query("SELECT p FROM Product p LEFT JOIN p.brandcars bc LEFT JOIN p.brandbattery bb WHERE (:type IS NULL OR p.type = :type) " +
             "AND (:brand IS NULL OR p.model LIKE %:brand%) AND (:yearMin IS NULL OR (bc.year >= :yearMin OR bb.year >= :yearMin)) " +

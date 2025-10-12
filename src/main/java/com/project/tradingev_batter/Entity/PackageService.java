@@ -19,20 +19,26 @@ public class PackageService {
     private long packageid;
 
     @Column(name = "name")
-    private String name; // e.g., "Cơ bản"
+    private String name; //"Cơ bản", "Chuyên nghiệp", "VIP"
+
+    @Column(name = "package_type")
+    private String packageType; // "CAR" hoặc "BATTERY"
 
     @Column(name = "duration_months")
-    private int durationMonths; // e.g., 1
+    private int durationMonths; //1, 6, 12
 
     @Column(name = "price")
-    private double price; // e.g., 100000
+    private double price;
 
     @Column(name = "max_cars")
-    private int maxCars; // e.g., 1
+    private int maxCars; //Số xe tối đa (nếu packageType = "CAR")
 
     @Column(name = "max_batteries")
-    private int maxBatteries; // e.g., 2
+    private int maxBatteries; // Số pin tối đa (nếu packageType = "BATTERY")
 
     @Column(name = "created_at")
     private Date createdAt;
+    
+    @Column(name = "description")
+    private String description; // Mô tả gói
 }

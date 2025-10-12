@@ -24,17 +24,20 @@ public class BuyerController {
     private final FeedbackService feedbackService;
     private final DisputeService disputeService;
     private final ProductService productService;
+    private final DocuSealService docuSealService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
                           FeedbackService feedbackService,
                           DisputeService disputeService,
-                          ProductService productService) {
+                          ProductService productService,
+                          DocuSealService docuSealService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
         this.disputeService = disputeService;
         this.productService = productService;
+        this.docuSealService = docuSealService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -156,20 +159,44 @@ public class BuyerController {
     @PostMapping("/orders/{orderId}/deposit")
     public ResponseEntity<Map<String, Object>> makeDeposit(
             @PathVariable Long orderId,
-            @RequestParam String paymentMethod) {
+            @RequestParam String paymentMethod,
+            @RequestParam String transactionLocation) {
         
         User buyer = getCurrentUser();
         
         // Xử lý đặt cọc
         Transaction transaction = orderService.processDeposit(buyer.getUserid(), orderId, paymentMethod);
+        Orders order = transaction.getOrders();
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Đặt cọc thành công. Đơn hàng đang chờ manager duyệt.");
-        response.put("transaction", transaction);
-        response.put("depositAmount", transaction.getOrders().getTotalamount() * 0.10);
-        
-        return ResponseEntity.ok(response);
+        //Tạo hợp đồng mua bán qua DocuSeal
+        try {
+            // Lấy seller từ order
+            User seller = order.getDetails().get(0).getProducts().getUsers();
+            
+            // Tạo hợp đồng mua bán
+            Contracts contract = docuSealService.createSaleTransactionContract(
+                    order, buyer, seller, transactionLocation);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đặt cọc thành công. Vui lòng ký hợp đồng điện tử để hoàn tất.");
+            response.put("transaction", transaction);
+            response.put("depositAmount", order.getTotalamount() * 0.10);
+            response.put("contract", Map.of(
+                    "contractId", contract.getContractid(),
+                    "submissionId", contract.getDocusealSubmissionId(),
+                    "status", "pending_signature"
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Đặt cọc thành công nhưng không thể tạo hợp đồng: " + e.getMessage());
+            errorResponse.put("transaction", transaction);
+            return ResponseEntity.status(500).body(errorResponse);
+        }
     }
 
     //Thanh toán phần còn lại khi đến điểm giao dịch

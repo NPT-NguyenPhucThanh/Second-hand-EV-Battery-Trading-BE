@@ -11,6 +11,7 @@ import com.project.tradingev_batter.Entity.Dispute;
 import com.project.tradingev_batter.Entity.Role;
 import com.project.tradingev_batter.Entity.User;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class ManagerServiceImpl implements ManagerService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -28,6 +30,7 @@ public class ManagerServiceImpl implements ManagerService {
     private final RoleRepository roleRepository;
     private final PackageServiceRepository packageServiceRepository;
     private final RefundRepository refundRepository;
+    private final DocuSealService docuSealService;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
@@ -37,9 +40,11 @@ public class ManagerServiceImpl implements ManagerService {
                               DisputeRepository disputeRepository,
                               RoleRepository roleRepository,
                               PackageServiceRepository packageServiceRepository,
-                              RefundRepository refundRepository) {
+                              RefundRepository refundRepository,
+                              DocuSealService docuSealService) {
         this.refundRepository = refundRepository;
         this.packageServiceRepository = packageServiceRepository;
+        this.docuSealService = docuSealService;
         this.roleRepository = roleRepository;
         this.disputeRepository = disputeRepository;
         this.orderRepository = orderRepository;
@@ -94,33 +99,49 @@ public class ManagerServiceImpl implements ManagerService {
     public void inputInspectionResult(Long productId, boolean passed, String note) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
+        
         if (passed) {
             product.setStatus(ProductStatus.DA_DUYET.toString());
-            //tạo hợp đồng điện tử
-            //ở đây tui coi tutorial (sử dụng Contract entity)
-            Contracts contracts = new Contracts();
-            contracts.setSignedat(new Date());
-            contracts.setOrders(null); //nếu ở đây không có liên kết order
-            contracts.setBuyers(null);
-            contracts.setSellers(product.getUsers());
-            contracts.setAdmins(getCurrentManager()); //đang chưa biết sao với đoạn này
-            contracts.setStatus(true);
-            contractsRepository.save(contracts);
-
-            //tạo noti cho seller
-            Notification sellerNotif = new Notification();
-            sellerNotif.setTitle("Xe đạt kiểm định");
-            sellerNotif.setDescription("Vui lòng ký hợp đồng điện tử.");
-            sellerNotif.setUsers(product.getUsers());
-            notificationRepository.save(sellerNotif);
+            
+            // ✅ TẠO HỢP ĐỒNG ĐIỆN TỬ QUA DOCUSEAL
+            User seller = product.getUsers();
+            User manager = getCurrentManager();
+            
+            try {
+                // Gọi DocuSealService để tạo hợp đồng đăng bán
+                Contracts contract = docuSealService.createProductListingContract(product, seller, manager);
+                
+                log.info("Product listing contract created via DocuSeal. Contract ID: {}, Submission ID: {}",
+                        contract.getContractid(), contract.getDocusealSubmissionId());
+                
+                // Notification đã được tạo trong DocuSealService
+                
+            } catch (Exception e) {
+                log.error("Error creating DocuSeal contract for product: {}", productId, e);
+                
+                // Nếu có lỗi, vẫn thông báo cho seller nhưng với thông tin lỗi
+                Notification errorNotif = new Notification();
+                errorNotif.setTitle("Lỗi tạo hợp đồng điện tử");
+                errorNotif.setDescription("Có lỗi xảy ra khi tạo hợp đồng điện tử. Vui lòng liên hệ hỗ trợ. Lỗi: " + e.getMessage());
+                errorNotif.setUsers(seller);
+                errorNotif.setCreated_time(new Date());
+                notificationRepository.save(errorNotif);
+                
+                // Có thể revert status về CHO_DUYET hoặc để manager xử lý
+                product.setStatus(ProductStatus.CHO_KIEM_DUYET.toString());
+            }
+            
         } else {
             product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH.toString());
         }
+        
         productRepository.save(product);
-        // Tạo noti chung
+        
+        // Tạo notification về kết quả kiểm định
         Notification noteNotif = new Notification();
         noteNotif.setTitle(passed ? "Kiểm định thành công" : "Kiểm định thất bại");
         noteNotif.setDescription(note);
+        noteNotif.setCreated_time(new Date());
         noteNotif.setUsers(product.getUsers());
         notificationRepository.save(noteNotif);
     }

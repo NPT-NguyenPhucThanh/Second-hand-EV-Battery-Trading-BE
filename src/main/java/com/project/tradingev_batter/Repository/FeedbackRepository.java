@@ -8,5 +8,4 @@ import java.util.List;
 @Repository
 public interface FeedbackRepository extends JpaRepository<Feedback,Long> {
     List<Feedback> findByProducts_Productid(Long productId);
-    List<Feedback> findByUsers_Userid(Long userId); // Feedback của buyer
 }
