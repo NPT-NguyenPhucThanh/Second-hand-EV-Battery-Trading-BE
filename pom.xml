@@ -79,7 +79,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-        <!-- Cloudinary v2.x: Core + HTTP5 (latest 2.3.2) -->
         <dependency>
             <groupId>com.cloudinary</groupId>
             <artifactId>cloudinary-core</artifactId>
@@ -90,8 +89,6 @@
             <artifactId>cloudinary-http5</artifactId>
             <version>2.3.2</version>
         </dependency>
-
-        <!-- HttpClient5 for DocuSeal/RestTemplate (managed by Spring Boot) -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>

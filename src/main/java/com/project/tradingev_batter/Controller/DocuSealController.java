@@ -10,10 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Controller xử lý DocuSeal webhook và các API liên quan
- * (Merged from DocuSealWebhookController)
- */
+//Controller xử lý DocuSeal webhook và các API liên quan
+
 @RestController
 @RequestMapping("/api/docuseal")
 @Slf4j

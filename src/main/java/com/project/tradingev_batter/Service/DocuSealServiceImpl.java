@@ -17,10 +17,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
 
-/**
- * Implementation của DocuSealService
- * Xử lý tất cả logic liên quan đến DocuSeal API
- */
+
+//Xử lý tất cả logic liên quan đến DocuSeal API
 @Service
 @Slf4j
 public class DocuSealServiceImpl implements DocuSealService {
@@ -145,9 +143,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Lấy thông tin submission từ DocuSeal
-     */
+    //Lấy thông tin submission từ DocuSeal
     @Override
     public DocuSealSubmissionResponse getSubmission(String submissionId) {
         log.info("Getting submission: {}", submissionId);
@@ -169,9 +165,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Xử lý webhook callback từ DocuSeal
-     */
+    //Xử lý webhook callback từ DocuSeal
     @Override
     @Transactional
     public void handleWebhook(DocuSealWebhookPayload payload) {
@@ -206,9 +200,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Xử lý khi submission hoàn tất (tất cả người ký đã ký xong)
-     */
+    //Xử lý khi submission hoàn tất (tất cả người ký đã ký xong)
     private void handleSubmissionCompleted(Contracts contract, DocuSealWebhookPayload.SubmissionData data) {
         log.info("Submission completed for contract: {}", contract.getContractid());
 
@@ -231,9 +223,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Xử lý khi hoàn tất hợp đồng đăng bán
-     */
+    //Xử lý khi hoàn tất hợp đồng đăng bán
     private void handleProductListingCompleted(Contracts contract) {
         User seller = contract.getSellers();
         
@@ -248,9 +238,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         log.info("Product listing contract completed for seller: {}", seller.getUserid());
     }
 
-    /**
-     * Xử lý khi hoàn tất hợp đồng mua bán
-     */
+    //Xử lý khi hoàn tất hợp đồng mua bán
     private void handleSaleTransactionCompleted(Contracts contract) {
         Orders order = contract.getOrders();
         User buyer = contract.getBuyers();
@@ -272,9 +260,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         log.info("Sale transaction contract completed for order: {}", order.getOrderid());
     }
 
-    /**
-     * Xử lý khi một người ký hoàn tất phần của mình
-     */
+    //Xử lý khi một người ký hoàn tất phần của mình
     private void handleSubmitterCompleted(Contracts contract, DocuSealWebhookPayload.SubmissionData data) {
         log.info("Submitter completed for contract: {}", contract.getContractid());
 
@@ -308,9 +294,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Xử lý khi người ký từ chối
-     */
+    //Xử lý khi người ký từ chối
     private void handleSubmitterDeclined(Contracts contract, DocuSealWebhookPayload.SubmissionData data) {
         log.warn("Submitter declined for contract: {}", contract.getContractid());
 
@@ -331,9 +315,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Tải PDF đã ký
-     */
+    //Tải PDF đã ký
     @Override
     public byte[] downloadSignedDocument(String documentUrl) {
         log.info("Downloading signed document from: {}", documentUrl);
@@ -353,9 +335,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Kiểm tra submission đã hoàn tất chưa
-     */
+    //Kiểm tra submission đã hoàn tất chưa
     @Override
     public boolean isSubmissionCompleted(String submissionId) {
         try {
@@ -367,9 +347,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    /**
-     * Gửi lại email nhắc nhở
-     */
+    //Gửi lại email nhắc nhở
     @Override
     public void resendSigningEmail(String submissionId, String submitterEmail) {
         log.info("Resending signing email for submission: {}, email: {}", submissionId, submitterEmail);
@@ -395,11 +373,9 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    // ========================= PRIVATE HELPER METHODS =========================
+    // ========================= PRIVATE HELPER METHODS ================================================================
 
-    /**
-     * Tạo submission request cho hợp đồng đăng bán
-     */
+    //Tạo submission request cho hợp đồng đăng bán
     private DocuSealSubmissionRequest buildProductListingRequest(Product product, User seller, User manager) {
         // Tạo submitter cho Seller
         DocuSealSubmissionRequest.Submitter sellerSubmitter = DocuSealSubmissionRequest.Submitter.builder()
@@ -420,9 +396,7 @@ public class DocuSealServiceImpl implements DocuSealService {
                 .build();
     }
 
-    /**
-     * Tạo submission request cho hợp đồng mua bán
-     */
+    //Tạo submission request cho hợp đồng mua bán
     private DocuSealSubmissionRequest buildSaleTransactionRequest(Orders order, User buyer, User seller, String transactionLocation) {
         // Lấy thông tin product từ order
         Product product = order.getDetails().get(0).getProducts();
@@ -455,9 +429,7 @@ public class DocuSealServiceImpl implements DocuSealService {
                 .build();
     }
 
-    /**
-     * Build fields cho hợp đồng đăng bán
-     */
+    //Build fields cho hợp đồng đăng bán
     private Map<String, Object> buildProductListingFields(Product product, User seller) {
         Map<String, Object> fields = new HashMap<>();
         
@@ -485,9 +457,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         return fields;
     }
 
-    /**
-     * Build fields cho buyer trong hợp đồng mua bán
-     */
+    //Build fields cho buyer trong hợp đồng mua bán
     private Map<String, Object> buildBuyerFields(Orders order, User buyer, Product product, String transactionLocation) {
         Map<String, Object> fields = new HashMap<>();
         
@@ -510,9 +480,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         return fields;
     }
 
-    /**
-     * Build fields cho seller trong hợp đồng mua bán
-     */
+    //Build fields cho seller trong hợp đồng mua bán
     private Map<String, Object> buildSellerFields(Orders order, User seller, Product product) {
         Map<String, Object> fields = new HashMap<>();
         
@@ -536,9 +504,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         return fields;
     }
 
-    /**
-     * Gọi DocuSeal API để tạo submission
-     */
+    //Gọi DocuSeal API để tạo submission
     private DocuSealSubmissionResponse createSubmission(DocuSealSubmissionRequest request) {
         String url = docuSealConfig.getApi().getBaseUrl() + "/api/submissions";
 
@@ -557,9 +523,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         return response.getBody();
     }
 
-    /**
-     * Tạo HTTP headers với API key
-     */
+    //Tạo HTTP headers với API key
     private HttpHeaders createHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Auth-Token", docuSealConfig.getApi().getKey());
@@ -567,9 +531,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         return headers;
     }
 
-    /**
-     * Lấy signing URL cho seller
-     */
+    //Lấy signing URL cho seller
     private String getSigningUrlForSeller(DocuSealSubmissionResponse response) {
         return response.getSubmitters().stream()
                 .filter(s -> "Seller".equalsIgnoreCase(s.getRole()))
@@ -578,9 +540,7 @@ public class DocuSealServiceImpl implements DocuSealService {
                 .orElse("N/A");
     }
 
-    /**
-     * Lấy signing URL cho buyer
-     */
+    //Lấy signing URL cho buyer
     private String getSigningUrlForBuyer(DocuSealSubmissionResponse response) {
         return response.getSubmitters().stream()
                 .filter(s -> "Buyer".equalsIgnoreCase(s.getRole()))
@@ -589,9 +549,7 @@ public class DocuSealServiceImpl implements DocuSealService {
                 .orElse("N/A");
     }
 
-    /**
-     * Tạo notification
-     */
+    //Tạo notification
     private void createNotification(User user, String title, String description) {
         Notification notification = new Notification();
         notification.setTitle(title);

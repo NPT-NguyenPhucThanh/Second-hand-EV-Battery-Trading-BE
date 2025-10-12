@@ -103,7 +103,7 @@ public class ManagerServiceImpl implements ManagerService {
         if (passed) {
             product.setStatus(ProductStatus.DA_DUYET.toString());
             
-            // ✅ TẠO HỢP ĐỒNG ĐIỆN TỬ QUA DOCUSEAL
+            //TẠO HỢP ĐỒNG ĐIỆN TỬ QUA DOCUSEAL
             User seller = product.getUsers();
             User manager = getCurrentManager();
             

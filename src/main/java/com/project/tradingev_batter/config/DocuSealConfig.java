@@ -13,55 +13,36 @@ import org.springframework.web.client.RestTemplate;
 @Data
 public class DocuSealConfig {
     
-    /**
-     * API Key từ DocuSeal
-     * Lấy từ DocuSeal Dashboard -> Settings -> API
-     */
+    //API Key từ DocuSeal
     private Api api;
     
-    /**
-     * Template IDs cho các loại hợp đồng
-     */
+    //Template IDs cho các loại hợp đồng
     private Template template;
     
-    /**
-     * Webhook configuration
-     */
+    //Webhook configuration
     private Webhook webhook;
     
     @Data
     public static class Api {
-        /**
-         * DocuSeal API Key
-         */
+        //DocuSeal API Key
         private String key;
         
-        /**
-         * Base URL của DocuSeal API
-         * VD: https://docuseal.com hoặc https://your-self-hosted-domain.com
-         */
+        //Base URL của DocuSeal API
         private String baseUrl;
     }
     
     @Data
     public static class Template {
-        /**
-         * Template ID cho hợp đồng đăng bán (Seller ký với hệ thống)
-         */
+        //Template ID cho hợp đồng đăng bán (Seller ký với hệ thống)
         private String productListing;
         
-        /**
-         * Template ID cho hợp đồng mua bán (Buyer ký với Seller)
-         */
+        //Template ID cho hợp đồng mua bán (Buyer ký với Seller)
         private String saleTransaction;
     }
     
     @Data
     public static class Webhook {
-        /**
-         * Public URL để nhận webhook callback từ DocuSeal
-         * VD: https://yourdomain.com/api/docuseal/webhook
-         */
+        //Public URL để nhận webhook callback từ DocuSeal
         private String url;
     }
     
