@@ -48,6 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
                         
+                        // === SWAGGER/OPENAPI ENDPOINTS ===
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+
                         // === WEBSOCKET ENDPOINTS ===
                         .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
                         
