@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.project.tradingev_batter.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,7 +34,8 @@ public class Product {
     private int amount;
 
     @Column(name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private ProductStatus status;
 
     @Column(name = "model")
     private String model;

@@ -3,7 +3,7 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.PackagePurchaseRequest;
-import com.project.tradingev_batter.dto.ProductRequest;
+import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,34 +23,50 @@ public class SellerController {
 
     private final SellerService sellerService;
     private final ProductService productService;
-    private final PackageServiceService packageServiceService;
     private final FeedbackService feedbackService;
-    private final OrderService orderService;
 
     public SellerController(SellerService sellerService, 
                            ProductService productService,
-                           PackageServiceService packageServiceService,
-                           FeedbackService feedbackService,
-                           OrderService orderService) {
+                           FeedbackService feedbackService) {
         this.sellerService = sellerService;
         this.productService = productService;
-        this.packageServiceService = packageServiceService;
         this.feedbackService = feedbackService;
-        this.orderService = orderService;
     }
 
     //Mua các gói dịch vụ đăng bán (Cơ bản, Chuyên nghiệp, VIP)
+    //NOTE: API này CHỈ TẠO ĐƠN HÀNG MUA GÓI, chưa thanh toán
+    //Seller cần gọi /api/payment/create-payment-url với transactionType=PACKAGE_PURCHASE để thanh toán
     @PostMapping("/packages/purchase")
     public ResponseEntity<Map<String, Object>> purchasePackage(
             @RequestBody PackagePurchaseRequest request) {
         
         User seller = getCurrentUser();
-        UserPackage userPackage = sellerService.purchasePackage(seller.getUserid(), request.getPackageId());
+        
+        // Tạo order mua gói (chưa active)
+        Map<String, Object> purchaseResult = sellerService.createPackagePurchaseOrder(
+                seller.getUserid(), 
+                request.getPackageId()
+        );
+        
+        Long orderId = (Long) purchaseResult.get("orderId");
+        Double packagePrice = (Double) purchaseResult.get("packagePrice");
+        String packageName = (String) purchaseResult.get("packageName");
         
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("message", "Mua gói thành công");
-        response.put("package", userPackage);
+        response.put("message", "Đơn hàng mua gói đã được tạo. Vui lòng thanh toán.");
+        response.put("orderId", orderId);
+        response.put("packageName", packageName);
+        response.put("packagePrice", packagePrice);
+        response.put("nextStep", Map.of(
+                "endpoint", "/api/payment/create-payment-url",
+                "method", "POST",
+                "params", Map.of(
+                        "orderId", orderId,
+                        "transactionType", "PACKAGE_PURCHASE"
+                ),
+                "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect seller sang VNPay"
+        ));
         
         return ResponseEntity.ok(response);
     }
@@ -302,22 +318,22 @@ public class SellerController {
     
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails userDetails)) {
             throw new RuntimeException("User not authenticated");
         }
-        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         return userDetails.getUser();
     }
 
-    private String getStatusDescription(String status) {
+    private String getStatusDescription(ProductStatus status) {
         return switch (status) {
-            case "CHO_DUYET" -> "Chờ duyệt sơ bộ";
-            case "CHO_KIEM_DUYET" -> "Chờ kiểm định";
-            case "DA_DUYET" -> "Đã duyệt - Chờ ký hợp đồng";
-            case "DANG_BAN" -> "Đang bán";
-            case "BI_TU_CHOI" -> "Bị từ chối";
-            case "KHONG_DAT_KIEM_DINH" -> "Không đạt kiểm định";
-            case "HET_HAN" -> "Hết hạn";
+            case CHO_DUYET -> "Chờ duyệt sơ bộ";
+            case CHO_KIEM_DUYET -> "Chờ kiểm định";
+            case DA_DUYET -> "Đã duyệt - Chờ ký hợp đồng";
+            case DANG_BAN -> "Đang bán";
+            case BI_TU_CHOI -> "Bị từ chối";
+            case KHONG_DAT_KIEM_DINH -> "Không đạt kiểm định";
+            case HET_HAN -> "Hết hạn";
+            case REMOVED_FROM_WAREHOUSE -> "Đã gỡ khỏi kho";
             default -> "Không xác định";
         };
     }

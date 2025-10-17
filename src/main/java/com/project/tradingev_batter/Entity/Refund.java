@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.project.tradingev_batter.enums.RefundStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,7 +27,8 @@ public class Refund {
     private String reason;
 
     @Column(name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private RefundStatus status;
 
     @CreationTimestamp //auto save current timestamp
     @Column(name = "createdat")

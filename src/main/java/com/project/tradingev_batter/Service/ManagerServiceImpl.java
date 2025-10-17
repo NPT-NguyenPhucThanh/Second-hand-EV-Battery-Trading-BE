@@ -3,6 +3,10 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
 import com.project.tradingev_batter.dto.RefundRequest;
+import com.project.tradingev_batter.enums.ProductStatus;
+import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.DisputeStatus;
+import com.project.tradingev_batter.enums.RefundStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -24,7 +28,6 @@ public class ManagerServiceImpl implements ManagerService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
-    private final ContractsRepository contractsRepository;
     private final OrderRepository orderRepository;
     private final DisputeRepository disputeRepository;
     private final RoleRepository roleRepository;
@@ -35,7 +38,6 @@ public class ManagerServiceImpl implements ManagerService {
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
                               ProductRepository productRepository,
-                              ContractsRepository contractsRepository,
                               OrderRepository orderRepository,
                               DisputeRepository disputeRepository,
                               RoleRepository roleRepository,
@@ -46,12 +48,11 @@ public class ManagerServiceImpl implements ManagerService {
         this.packageServiceRepository = packageServiceRepository;
         this.docuSealService = docuSealService;
         this.roleRepository = roleRepository;
-        this.disputeRepository = disputeRepository;
-        this.orderRepository = orderRepository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.productRepository = productRepository;
-        this.contractsRepository = contractsRepository;
+        this.orderRepository = orderRepository;
+        this.disputeRepository = disputeRepository;
     }
 
     //Sử dụng Notification entity. Khi seller đăng product (xe), tự động tạo notification cho managers.
@@ -75,9 +76,9 @@ public class ManagerServiceImpl implements ManagerService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         if (approved) {
-            product.setStatus(ProductStatus.CHO_KIEM_DUYET.toString());
+            product.setStatus(ProductStatus.CHO_KIEM_DUYET);
         } else {
-            product.setStatus(ProductStatus.BI_TU_CHOI.toString());
+            product.setStatus(ProductStatus.BI_TU_CHOI);
         }
         productRepository.save(product);
 
@@ -101,8 +102,8 @@ public class ManagerServiceImpl implements ManagerService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         if (passed) {
-            product.setStatus(ProductStatus.DA_DUYET.toString());
-            
+            product.setStatus(ProductStatus.DA_DUYET);
+
             //TẠO HỢP ĐỒNG ĐIỆN TỬ QUA DOCUSEAL
             User seller = product.getUsers();
             User manager = getCurrentManager();
@@ -128,11 +129,11 @@ public class ManagerServiceImpl implements ManagerService {
                 notificationRepository.save(errorNotif);
                 
                 // Có thể revert status về CHO_DUYET hoặc để manager xử lý
-                product.setStatus(ProductStatus.CHO_KIEM_DUYET.toString());
+                product.setStatus(ProductStatus.CHO_KIEM_DUYET);
             }
             
         } else {
-            product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH.toString());
+            product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH);
         }
         
         productRepository.save(product);
@@ -175,9 +176,9 @@ public class ManagerServiceImpl implements ManagerService {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         if(approved){
-            order.setStatus("DA_DUYET");
+            order.setStatus(OrderStatus.DA_DUYET);
         } else {
-            order.setStatus("BI_TU_CHOI");
+            order.setStatus(OrderStatus.BI_TU_CHOI);
             double depositeAmount = order.getTotalamount() * 0.1; //10% tiền cọc
             processOrderRefundIfRejected(orderId, depositeAmount);
 //            //xử lý hoàn tiền
@@ -218,25 +219,25 @@ public class ManagerServiceImpl implements ManagerService {
         public void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest) {
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new RuntimeException("Dispute not found"));
-        dispute.setStatus("RESOLVED");
+        dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setResolution(resolution);
         dispute.setManager(getCurrentManager()); // Giả sử có phương thức lấy manager hiện tại
         disputeRepository.save(dispute);
 
         //update order status
         Orders order = dispute.getOrder();
-        order.setStatus("DISPUTE_RESOLVED"); // Or "RESOLVED_WITH_REFUND" nếu refund
+        order.setStatus(OrderStatus.DISPUTE_RESOLVED); // Or "RESOLVED_WITH_REFUND" nếu refund
         orderRepository.save(order);
 
         if (refundRequest != null && refundRequest.getAmount() > 0) {
             Refund refund = new Refund();
             refund.setAmount(refundRequest.getAmount());
             refund.setReason(refundRequest.getReason() != null ? refundRequest.getReason() : resolution);
-            refund.setStatus(refundRequest.getStatus() != null ? refundRequest.getStatus() : "PENDING");
+            refund.setStatus(refundRequest.getStatus() != null ? RefundStatus.valueOf(refundRequest.getStatus()) : RefundStatus.PENDING);
             refund.setOrders(order);
             refundRepository.save(refund);  // Auto createdat via @CreationTimestamp
 
-            order.setStatus("RESOLVED_WITH_REFUND");
+            order.setStatus(OrderStatus.RESOLVED_WITH_REFUND);
             orderRepository.save(order);  // Update lại order
 
             // Noti với refund info
@@ -273,7 +274,7 @@ public class ManagerServiceImpl implements ManagerService {
         Refund refund = new Refund();
         refund.setAmount(depositAmount);
         refund.setReason("Từ chối đơn hàng - Hoàn cọc 10%");
-        refund.setStatus("COMPLETED");  // Giả định auto-complete, integrate VnPay sau
+        refund.setStatus(RefundStatus.COMPLETED);  // Giả định auto-complete, integrate VnPay sau
         refund.setOrders(order);
         refundRepository.save(refund);
 
@@ -309,7 +310,7 @@ public class ManagerServiceImpl implements ManagerService {
             throw new RuntimeException("Only Car EV products can be removed from warehouse");
         }
         product.setInWarehouse(false);
-        product.setStatus("REMOVED_FROM_WAREHOUSE");  // Update status
+        product.setStatus(ProductStatus.REMOVED_FROM_WAREHOUSE);  // Update status
         productRepository.save(product);
 
         // Noti seller
@@ -321,9 +322,7 @@ public class ManagerServiceImpl implements ManagerService {
         notificationRepository.save(noti);
     }
 
-    //Cập nhật trạng thái kho
-    //ví dụ: "READY", "SHIPPED", "MAINTENANCE"
-    //nếu trạng thái là "SHIPPED" -> tạo noti cho seller
+    //Cập nhật trạng thái kho - Chỉ chấp nhận các ProductStatus hợp lệ
     @Override
     @Transactional
     public void updateWarehouseStatus(Long productId, String newStatus) {
@@ -332,16 +331,23 @@ public class ManagerServiceImpl implements ManagerService {
         if (!product.getInWarehouse()) {
             throw new RuntimeException("Product not in warehouse");
         }
-        product.setStatus(newStatus);  //"READY", "SHIPPED", "MAINTENANCE"
-        productRepository.save(product);
 
-        // Noti nếu cần (SHIPPED → seller)
-        if ("SHIPPED".equals(newStatus)) {
-            User seller = product.getUsers();
-            Notification noti = new Notification();
-            noti.setTitle("Sản phẩm đã được vận chuyển khỏi kho");
-            noti.setUsers(seller);
-            notificationRepository.save(noti);
+        // Parse string to ProductStatus enum
+        try {
+            ProductStatus status = ProductStatus.valueOf(newStatus);
+            product.setStatus(status);
+            productRepository.save(product);
+
+            // Noti nếu cần
+            if (status == ProductStatus.DANG_BAN) {
+                User seller = product.getUsers();
+                Notification noti = new Notification();
+                noti.setTitle("Sản phẩm đã được vận chuyển khỏi kho");
+                noti.setUsers(seller);
+                notificationRepository.save(noti);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid product status: " + newStatus);
         }
     }
 

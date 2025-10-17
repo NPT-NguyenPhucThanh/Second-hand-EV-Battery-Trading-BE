@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.project.tradingev_batter.enums.DisputeStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,7 +23,8 @@ public class Dispute {
     private String description;
 
     @Column(name = "status")
-    private String status; // e.g., "OPEN", "RESOLVED"
+    @Enumerated(EnumType.STRING)
+    private DisputeStatus status;
 
     @Column(name = "resolution")
     private String resolution;

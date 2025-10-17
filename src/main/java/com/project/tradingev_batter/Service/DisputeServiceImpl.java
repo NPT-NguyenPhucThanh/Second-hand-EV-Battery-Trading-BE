@@ -8,6 +8,8 @@ import com.project.tradingev_batter.Repository.DisputeRepository;
 import com.project.tradingev_batter.Repository.NotificationRepository;
 import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
+import com.project.tradingev_batter.enums.DisputeStatus;
+import com.project.tradingev_batter.enums.OrderStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +44,7 @@ public class DisputeServiceImpl implements DisputeService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
-        if (order.getUsers().getUserid() != buyerId) {
+        if (!order.getUsers().getUserid().equals(buyerId)) {
             throw new RuntimeException("Bạn không có quyền tạo khiếu nại cho đơn hàng này");
         }
         
@@ -50,12 +52,12 @@ public class DisputeServiceImpl implements DisputeService {
         Dispute dispute = new Dispute();
         dispute.setOrder(order);
         dispute.setDescription(description);
-        dispute.setStatus("OPEN"); // Mở khiếu nại
+        dispute.setStatus(DisputeStatus.OPEN); // Mở khiếu nại
         dispute.setCreatedAt(new Date());
         dispute = disputeRepository.save(dispute);
         
         // Cập nhật trạng thái đơn hàng
-        order.setStatus("TRANH_CHAP");
+        order.setStatus(OrderStatus.TRANH_CHAP);
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         

@@ -10,7 +10,8 @@ import java.util.Map;
 
 public interface SellerService {
     // Quản lý gói đăng bán
-    UserPackage purchasePackage(Long sellerId, Long packageId);
+    Map<String, Object> createPackagePurchaseOrder(Long sellerId, Long packageId); //Tạo order mua gói
+    UserPackage activatePackageAfterPayment(Long sellerId, Long packageId); //Kích hoạt gói sau thanh toán
     UserPackage getCurrentPackage(Long sellerId);
     boolean isPackageExpired(UserPackage userPackage);
     UserPackage renewPackage(Long sellerId, Long packageId);

@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.project.tradingev_batter.enums.PostStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,7 +28,8 @@ public class Post {
     private String description;
 
     @Column(name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private PostStatus status;
 
     @Column(name = "created_at")
     private Date created_at;

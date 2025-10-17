@@ -9,8 +9,8 @@ import com.project.tradingev_batter.Service.ImageUploadService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
 import com.project.tradingev_batter.dto.ProductDetailResponse;
-import com.project.tradingev_batter.dto.ProductRequest;
 import com.project.tradingev_batter.dto.SellerInfoResponse;
+import com.project.tradingev_batter.enums.ProductStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -88,7 +88,7 @@ public class ProductController {
             @RequestParam("description") String description,
             @RequestParam("cost") double cost,
             @RequestParam("amount") int amount,
-            @RequestParam("status") String status,
+            @RequestParam("status") String statusStr,
             @RequestParam("model") String model,
             @RequestParam("type") String type,
             @RequestParam("specs") String specs,
@@ -100,7 +100,16 @@ public class ProductController {
         product.setDescription(description);
         product.setCost(cost);
         product.setAmount(amount);
-        product.setStatus(status);
+
+        // Parse String to ProductStatus enum
+        try {
+            ProductStatus status = ProductStatus.valueOf(statusStr);
+            product.setStatus(status);
+        } catch (IllegalArgumentException e) {
+            // Default to CHO_DUYET if invalid status
+            product.setStatus(ProductStatus.CHO_DUYET);
+        }
+
         product.setModel(model);
         product.setType(type);
         product.setSpecs(specs);
@@ -129,7 +138,7 @@ public class ProductController {
             @RequestParam("description") String description,
             @RequestParam("cost") double cost,
             @RequestParam("amount") int amount,
-            @RequestParam("status") String status,
+            @RequestParam("status") String statusStr,
             @RequestParam("model") String model,
             @RequestParam("type") String type,
             @RequestParam("specs") String specs,
@@ -141,7 +150,17 @@ public class ProductController {
         product.setDescription(description);
         product.setCost(cost);
         product.setAmount(amount);
-        product.setStatus(status);
+
+        // Parse String to ProductStatus enum
+        try {
+            ProductStatus status = ProductStatus.valueOf(statusStr);
+            product.setStatus(status);
+        } catch (IllegalArgumentException e) {
+            // Keep existing status if invalid
+            Product existing = productService.getProductById(id);
+            product.setStatus(existing.getStatus());
+        }
+
         product.setModel(model);
         product.setType(type);
         product.setSpecs(specs);
@@ -197,3 +216,4 @@ public class ProductController {
         return uploadedCount;
     }
 }
+

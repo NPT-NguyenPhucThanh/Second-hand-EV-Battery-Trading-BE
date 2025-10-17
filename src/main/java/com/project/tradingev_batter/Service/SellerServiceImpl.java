@@ -2,6 +2,8 @@ package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
+import com.project.tradingev_batter.enums.ProductStatus;
+import com.project.tradingev_batter.enums.OrderStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,7 +23,6 @@ public class SellerServiceImpl implements SellerService {
     private final BrandBatteryRepository brandBatteryRepository;
     private final ProductImgRepository productImgRepository;
     private final OrderRepository orderRepository;
-    private final OrderDetailRepository orderDetailRepository;
     private final ImageUploadService imageUploadService;
     private final NotificationRepository notificationRepository;
 
@@ -33,7 +34,6 @@ public class SellerServiceImpl implements SellerService {
                             BrandBatteryRepository brandBatteryRepository,
                             ProductImgRepository productImgRepository,
                             OrderRepository orderRepository,
-                            OrderDetailRepository orderDetailRepository,
                             ImageUploadService imageUploadService,
                             NotificationRepository notificationRepository) {
         this.userRepository = userRepository;
@@ -44,15 +44,67 @@ public class SellerServiceImpl implements SellerService {
         this.brandBatteryRepository = brandBatteryRepository;
         this.productImgRepository = productImgRepository;
         this.orderRepository = orderRepository;
-        this.orderDetailRepository = orderDetailRepository;
         this.imageUploadService = imageUploadService;
         this.notificationRepository = notificationRepository;
     }
 
-    //Mua gói dịch vụ đăng bán
+    //TẠO ORDER MUA GÓI - Tạo order mua gói (chưa active UserPackage)
+    //UserPackage chỉ được active sau khi thanh toán thành công
     @Override
     @Transactional
-    public UserPackage purchasePackage(Long sellerId, Long packageId) {
+    public Map<String, Object> createPackagePurchaseOrder(Long sellerId, Long packageId) {
+        User seller = userRepository.findById(sellerId)
+                .orElseThrow(() -> new RuntimeException("Seller not found"));
+        
+        PackageService packageService = packageServiceRepository.findById(packageId)
+                .orElseThrow(() -> new RuntimeException("Package not found"));
+        
+        // VALIDATE - Phải mua đúng loại gói
+        // Nếu gói XE thì maxBatteries phải = 0
+        // Nếu gói PIN thì maxCars phải = 0
+        if ("CAR".equals(packageService.getPackageType()) && packageService.getMaxBatteries() > 0) {
+            throw new RuntimeException("Gói xe không được có maxBatteries");
+        }
+        if ("BATTERY".equals(packageService.getPackageType()) && packageService.getMaxCars() > 0) {
+            throw new RuntimeException("Gói pin không được có maxCars");
+        }
+        
+        // Tạo order mua gói (giống order bình thường)
+        Orders order = new Orders();
+        order.setTotalamount(packageService.getPrice());
+        order.setShippingfee(0);
+        order.setTotalfinal(packageService.getPrice());
+        order.setShippingaddress("N/A - Package Purchase");
+        order.setPaymentmethod("VNPAY");
+        order.setCreatedat(new Date());
+        order.setStatus(com.project.tradingev_batter.enums.OrderStatus.CHO_THANH_TOAN);
+        order.setUsers(seller);
+        order = orderRepository.save(order);
+        
+        // TODO: Lưu packageId vào đâu đó để biết order này mua gói nào
+        // Option 1: Thêm field packageId vào Order
+        // Option 2: Tạo bảng PackagePurchaseOrder riêng
+        // Tạm thời lưu vào description của Order_detail (workaround)
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderId", order.getOrderid());
+        result.put("packageId", packageId);
+        result.put("packageName", packageService.getName());
+        result.put("packagePrice", packageService.getPrice());
+        result.put("packageType", packageService.getPackageType());
+        
+        // Tạo notification
+        createNotification(seller, "Đơn hàng mua gói đã tạo", 
+                "Vui lòng thanh toán đơn hàng #" + order.getOrderid() + " để kích hoạt gói " + packageService.getName());
+        
+        return result;
+    }
+
+    //ACTIVATE USER PACKAGE - Kích hoạt gói sau khi thanh toán thành công
+    //Method này sẽ được gọi từ PaymentController sau khi VNPay callback success
+    @Override
+    @Transactional
+    public UserPackage activatePackageAfterPayment(Long sellerId, Long packageId) {
         User seller = userRepository.findById(sellerId)
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
         
@@ -77,9 +129,12 @@ public class SellerServiceImpl implements SellerService {
         
         userPackageRepository.save(userPackage);
         
+        // BR-31: VALIDATE - Kiểm tra lại loại gói
+        validatePackageType(packageService);
+        
         // Tạo notification
-        createNotification(seller, "Mua gói thành công", 
-                "Bạn đã mua gói " + packageService.getName() + " thành công. Hạn sử dụng đến " + userPackage.getExpiryDate());
+        createNotification(seller, "Kích hoạt gói thành công", 
+                "Gói " + packageService.getName() + " đã được kích hoạt. Hạn sử dụng đến " + userPackage.getExpiryDate());
         
         return userPackage;
     }
@@ -135,24 +190,42 @@ public class SellerServiceImpl implements SellerService {
             return currentPackage;
         } else {
             // Mua gói mới
-            return purchasePackage(sellerId, packageId);
+            return activatePackageAfterPayment(sellerId, packageId);
         }
     }
 
+    //BR-31: KIỂM TRA XEM SELLER CÓ GÓI XE HỢP LỆ KHÔNG
+    //Seller phải có gói packageType = "CAR" còn lượt đăng
     @Override
     public boolean canPostCar(Long sellerId) {
-        UserPackage currentPackage = getCurrentPackage(sellerId);
-        return currentPackage != null && 
-               !isPackageExpired(currentPackage) && 
-               currentPackage.getRemainingCars() > 0;
+        UserPackage currentCarPackage = getCurrentPackageByType(sellerId, "CAR");
+        return currentCarPackage != null && 
+               !isPackageExpired(currentCarPackage) && 
+               currentCarPackage.getRemainingCars() > 0;
     }
 
+
+    //BR-31: KIỂM TRA XEM SELLER CÓ GÓI PIN HỢP LỆ KHÔNG
+    //Seller phải có gói packageType = "BATTERY" còn lượt đăng
     @Override
     public boolean canPostBattery(Long sellerId) {
-        UserPackage currentPackage = getCurrentPackage(sellerId);
-        return currentPackage != null && 
-               !isPackageExpired(currentPackage) && 
-               currentPackage.getRemainingBatteries() > 0;
+        UserPackage currentBatteryPackage = getCurrentPackageByType(sellerId, "BATTERY");
+        return currentBatteryPackage != null && 
+               !isPackageExpired(currentBatteryPackage) && 
+               currentBatteryPackage.getRemainingBatteries() > 0;
+    }
+    
+    //BR-31: LẤY GÓI HIỆN TẠI THEO LOẠI (CAR hoặc BATTERY)
+    private UserPackage getCurrentPackageByType(Long sellerId, String packageType) {
+        List<UserPackage> packages = userPackageRepository.findByUser_UseridOrderByExpiryDateDesc(sellerId);
+        
+        for (UserPackage pkg : packages) {
+            if (!isPackageExpired(pkg) && packageType.equals(pkg.getPackageService().getPackageType())) {
+                return pkg;
+            }
+        }
+        
+        return null;
     }
 
     //Đăng xe (cần kiểm định và hợp đồng)
@@ -170,7 +243,7 @@ public class SellerServiceImpl implements SellerService {
         product.setDescription(description);
         product.setCost(cost);
         product.setAmount(1); // Xe chỉ có 1 chiếc
-        product.setStatus("CHO_DUYET"); // Chờ duyệt sơ bộ
+        product.setStatus(ProductStatus.CHO_DUYET); // Chờ duyệt sơ bộ
         product.setModel(model);
         product.setType("Car EV");
         product.setSpecs(specs);
@@ -193,10 +266,13 @@ public class SellerServiceImpl implements SellerService {
             uploadImages(product, images);
         }
         
-        // Giảm lượt đăng
-        UserPackage currentPackage = getCurrentPackage(sellerId);
-        currentPackage.setRemainingCars(currentPackage.getRemainingCars() - 1);
-        userPackageRepository.save(currentPackage);
+        //Giảm lượt đăng từ gói XE
+        UserPackage currentCarPackage = getCurrentPackageByType(sellerId, "CAR");
+        if (currentCarPackage == null) {
+            throw new RuntimeException("Không tìm thấy gói xe hợp lệ");
+        }
+        currentCarPackage.setRemainingCars(currentCarPackage.getRemainingCars() - 1);
+        userPackageRepository.save(currentCarPackage);
         
         // Tạo notification cho seller
         createNotification(seller, "Đăng xe thành công", 
@@ -222,7 +298,7 @@ public class SellerServiceImpl implements SellerService {
         product.setDescription(description);
         product.setCost(cost);
         product.setAmount(1);
-        product.setStatus("DANG_BAN"); // Pin hiển thị ngay lập tức
+        product.setStatus(ProductStatus.DANG_BAN); // Pin hiển thị ngay lập tức
         product.setModel(brand);
         product.setType("Battery");
         product.setSpecs("Capacity: " + capacity + "kWh, Voltage: " + voltage + "V, Condition: " + condition);
@@ -247,10 +323,13 @@ public class SellerServiceImpl implements SellerService {
             uploadImages(product, images);
         }
         
-        // Giảm lượt đăng
-        UserPackage currentPackage = getCurrentPackage(sellerId);
-        currentPackage.setRemainingBatteries(currentPackage.getRemainingBatteries() - 1);
-        userPackageRepository.save(currentPackage);
+        //Giảm lượt đăng từ gói PIN
+        UserPackage currentBatteryPackage = getCurrentPackageByType(sellerId, "BATTERY");
+        if (currentBatteryPackage == null) {
+            throw new RuntimeException("Không tìm thấy gói pin hợp lệ");
+        }
+        currentBatteryPackage.setRemainingBatteries(currentBatteryPackage.getRemainingBatteries() - 1);
+        userPackageRepository.save(currentBatteryPackage);
         
         // Tạo notification cho seller
         createNotification(seller, "Đăng pin thành công", 
@@ -276,7 +355,7 @@ public class SellerServiceImpl implements SellerService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         // Kiểm tra quyền sở hữu
-        if (product.getUsers().getUserid() != sellerId) {
+        if (!product.getUsers().getUserid().equals(sellerId)) {
             throw new RuntimeException("Bạn không có quyền chỉnh sửa sản phẩm này");
         }
         
@@ -308,7 +387,7 @@ public class SellerServiceImpl implements SellerService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         // Kiểm tra quyền sở hữu
-        if (product.getUsers().getUserid() != sellerId) {
+        if (!product.getUsers().getUserid().equals(sellerId)) {
             throw new RuntimeException("Bạn không có quyền xóa sản phẩm này");
         }
         
@@ -335,7 +414,7 @@ public class SellerServiceImpl implements SellerService {
                         .anyMatch(detail -> {
                             Product product = detail.getProducts();
                             return "Car EV".equals(product.getType()) && 
-                                   product.getUsers().getUserid() == sellerId;
+                                   product.getUsers().getUserid().equals(sellerId);
                         }))
                 .collect(Collectors.toList());
     }
@@ -350,7 +429,7 @@ public class SellerServiceImpl implements SellerService {
                         .anyMatch(detail -> {
                             Product product = detail.getProducts();
                             return "Battery".equals(product.getType()) && 
-                                   product.getUsers().getUserid() == sellerId;
+                                   product.getUsers().getUserid().equals(sellerId);
                         }))
                 .collect(Collectors.toList());
     }
@@ -368,11 +447,11 @@ public class SellerServiceImpl implements SellerService {
         List<Orders> batteryOrders = getSellerBatteryOrders(sellerId);
         
         long completedCarOrders = carOrders.stream()
-                .filter(o -> "DA_HOAN_TAT".equals(o.getStatus()))
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
                 .count();
         
         long completedBatteryOrders = batteryOrders.stream()
-                .filter(o -> "DA_HOAN_TAT".equals(o.getStatus()))
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
                 .count();
         
         // Tính doanh thu
@@ -398,7 +477,7 @@ public class SellerServiceImpl implements SellerService {
         
         // Tính tổng doanh thu từ xe
         double carRevenue = carOrders.stream()
-                .filter(o -> "DA_HOAN_TAT".equals(o.getStatus()))
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
                 .flatMap(o -> o.getDetails().stream())
                 .filter(d -> "Car EV".equals(d.getProducts().getType()))
                 .mapToDouble(d -> d.getUnit_price() * d.getQuantity())
@@ -406,7 +485,7 @@ public class SellerServiceImpl implements SellerService {
         
         // Tính tổng doanh thu từ pin
         double batteryRevenue = batteryOrders.stream()
-                .filter(o -> "DA_HOAN_TAT".equals(o.getStatus()))
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
                 .flatMap(o -> o.getDetails().stream())
                 .filter(d -> "Battery".equals(d.getProducts().getType()))
                 .mapToDouble(d -> d.getUnit_price() * d.getQuantity())
@@ -443,6 +522,28 @@ public class SellerServiceImpl implements SellerService {
         }
     }
 
+    //VALIDATE PACKAGE TYPE
+    //Đảm bảo gói xe không có maxBatteries, gói pin không có maxCars
+    private void validatePackageType(PackageService packageService) {
+        if ("CAR".equals(packageService.getPackageType())) {
+            if (packageService.getMaxBatteries() > 0) {
+                throw new RuntimeException("Gói xe không được có maxBatteries");
+            }
+            if (packageService.getMaxCars() == 0) {
+                throw new RuntimeException("Gói xe phải có maxCars > 0");
+            }
+        } else if ("BATTERY".equals(packageService.getPackageType())) {
+            if (packageService.getMaxCars() > 0) {
+                throw new RuntimeException("Gói pin không được có maxCars");
+            }
+            if (packageService.getMaxBatteries() == 0) {
+                throw new RuntimeException("Gói pin phải có maxBatteries > 0");
+            }
+        } else {
+            throw new RuntimeException("packageType phải là CAR hoặc BATTERY");
+        }
+    }
+    
     private void createNotification(User user, String title, String description) {
         Notification notification = new Notification();
         notification.setTitle(title);

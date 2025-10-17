@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.project.tradingev_batter.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -42,7 +43,8 @@ public class Orders {
     private Date updatedat;
 
     @Column(name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
 
     @OneToMany(mappedBy = "orders")
     private List<Contracts>  contracts = new ArrayList<>();

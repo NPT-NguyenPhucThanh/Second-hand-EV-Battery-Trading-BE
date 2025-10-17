@@ -6,6 +6,7 @@ import com.project.tradingev_batter.dto.CheckoutRequest;
 import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.DisputeRequest;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,19 +26,22 @@ public class BuyerController {
     private final DisputeService disputeService;
     private final ProductService productService;
     private final DocuSealService docuSealService;
+    private final VNPayService vnPayService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
                           FeedbackService feedbackService,
                           DisputeService disputeService,
                           ProductService productService,
-                          DocuSealService docuSealService) {
+                          DocuSealService docuSealService,
+                          VNPayService vnPayService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
         this.disputeService = disputeService;
         this.productService = productService;
         this.docuSealService = docuSealService;
+        this.vnPayService = vnPayService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -57,7 +61,6 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
-
     //Xem giỏ hàng
     @GetMapping("/cart")
     public ResponseEntity<Map<String, Object>> getCart() {
@@ -74,7 +77,6 @@ public class BuyerController {
         
         return ResponseEntity.ok(response);
     }
-
 
     @DeleteMapping("/cart/remove/{itemId}")
     public ResponseEntity<Map<String, Object>> removeFromCart(@PathVariable Long itemId) {
@@ -129,7 +131,8 @@ public class BuyerController {
             double depositAmount = order.getTotalamount() * 0.10;
             response.put("requireDeposit", true);
             response.put("depositAmount", depositAmount);
-            response.put("message", "Vui lòng đặt cọc 10% để tiếp tục");
+            response.put("message", "Đơn hàng đã được tạo. Vui lòng thanh toán đặt cọc 10%");
+            response.put("nextStep", "Gọi API /api/payment/create-payment-url với transactionType=DEPOSIT");
         }
         
         return ResponseEntity.ok(response);
@@ -155,37 +158,59 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
-    //Đặt cọc 10% cho đơn hàng xe
+    /**
+     * ĐẶT CỌC 10% CHO ĐƠN HÀNG XE - REDIRECT SANG VNPAY
+     * 1. Buyer gọi API này
+     * 2. BE tạo transaction record (PENDING)
+     * 3. BE tạo payment URL từ VNPay
+     * 4. Frontend redirect buyer sang VNPay
+     * 5. Buyer thanh toán trên VNPay
+     * 6. VNPay callback về /api/payment/vnpay-ipn
+     * 7. BE cập nhật transaction (SUCCESS)
+     * 8. BE tạo hợp đồng DocuSeal
+     * NOTE: API này CHỈ TẠO PAYMENT URL, không xử lý payment trực tiếp
+     */
     @PostMapping("/orders/{orderId}/deposit")
     public ResponseEntity<Map<String, Object>> makeDeposit(
             @PathVariable Long orderId,
-            @RequestParam String paymentMethod,
-            @RequestParam String transactionLocation) {
+            @RequestParam String transactionLocation,
+            HttpServletRequest request) {
         
         User buyer = getCurrentUser();
         
-        // Xử lý đặt cọc
-        Transaction transaction = orderService.processDeposit(buyer.getUserid(), orderId, paymentMethod);
-        Orders order = transaction.getOrders();
-        
-        //Tạo hợp đồng mua bán qua DocuSeal
         try {
-            // Lấy seller từ order
-            User seller = order.getDetails().get(0).getProducts().getUsers();
+            // Kiểm tra order tồn tại và thuộc về buyer
+            Orders order = orderService.getOrderById(orderId);
+            if (order.getUsers().getUserid() != buyer.getUserid()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Bạn không có quyền thanh toán đơn hàng này"
+                ));
+            }
             
-            // Tạo hợp đồng mua bán
-            Contracts contract = docuSealService.createSaleTransactionContract(
-                    order, buyer, seller, transactionLocation);
+            // Kiểm tra order có phải xe không
+            if (!orderService.isCarOrder(order)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Chỉ đơn hàng xe mới cần đặt cọc"
+                ));
+            }
             
+            // Lưu transaction location vào order (để dùng sau khi thanh toán xong)
+            order.setShippingaddress(transactionLocation);
+            
+            // REDIRECT SANG PAYMENT CONTROLLER để tạo VNPay URL
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Đặt cọc thành công. Vui lòng ký hợp đồng điện tử để hoàn tất.");
-            response.put("transaction", transaction);
-            response.put("depositAmount", order.getTotalamount() * 0.10);
-            response.put("contract", Map.of(
-                    "contractId", contract.getContractid(),
-                    "submissionId", contract.getDocusealSubmissionId(),
-                    "status", "pending_signature"
+            response.put("message", "Vui lòng gọi API Payment để thanh toán đặt cọc");
+            response.put("nextStep", Map.of(
+                "endpoint", "/api/payment/create-payment-url",
+                "method", "POST",
+                "params", Map.of(
+                    "orderId", orderId,
+                    "transactionType", "DEPOSIT"
+                ),
+                "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect buyer sang VNPay"
             ));
             
             return ResponseEntity.ok(response);
@@ -193,38 +218,65 @@ public class BuyerController {
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
-            errorResponse.put("message", "Đặt cọc thành công nhưng không thể tạo hợp đồng: " + e.getMessage());
-            errorResponse.put("transaction", transaction);
+            errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
 
-    //Thanh toán phần còn lại khi đến điểm giao dịch
+    /**
+     * THANH TOÁN PHẦN CÒN LẠI (90%) - REDIRECT SANG VNPAY
+     * 1. Buyer đã đặt cọc 10%
+     * 2. Manager đã duyệt order
+     * 3. Buyer đến điểm giao dịch
+     * 4. Buyer gọi API này để thanh toán 90% còn lại
+     * 5. Redirect sang VNPay
+     */
     @PostMapping("/orders/{orderId}/final-payment")
     public ResponseEntity<Map<String, Object>> makeFinalPayment(
             @PathVariable Long orderId,
-            @RequestParam String paymentMethod,
             @RequestParam(required = false) Boolean transferOwnership,
-            @RequestParam(required = false) Boolean changePlate) {
+            @RequestParam(required = false) Boolean changePlate,
+            HttpServletRequest request) {
         
         User buyer = getCurrentUser();
         
-        Transaction transaction = orderService.processFinalPayment(
-                buyer.getUserid(), 
-                orderId, 
-                paymentMethod,
-                transferOwnership != null && transferOwnership,
-                changePlate != null && changePlate
-        );
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Thanh toán thành công. Giao dịch hoàn tất.");
-        response.put("transaction", transaction);
-        response.put("transferOwnership", transferOwnership);
-        response.put("changePlate", changePlate);
-        
-        return ResponseEntity.ok(response);
+        try {
+            // Kiểm tra order
+            Orders order = orderService.getOrderById(orderId);
+            if (order.getUsers().getUserid() != buyer.getUserid()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Bạn không có quyền thanh toán đơn hàng này"
+                ));
+            }
+            
+            // TODO: Lưu thông tin transferOwnership, changePlate vào đâu đó
+            
+            // REDIRECT SANG PAYMENT CONTROLLER
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Vui lòng gọi API Payment để thanh toán phần còn lại");
+            response.put("nextStep", Map.of(
+                "endpoint", "/api/payment/create-payment-url",
+                "method", "POST",
+                "params", Map.of(
+                    "orderId", orderId,
+                    "transactionType", "FINAL_PAYMENT"
+                ),
+                "additionalInfo", Map.of(
+                    "transferOwnership", transferOwnership != null && transferOwnership,
+                    "changePlate", changePlate != null && changePlate
+                )
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
     }
 
     //Xem lịch sử giao dịch
@@ -240,7 +292,6 @@ public class BuyerController {
         
         return ResponseEntity.ok(response);
     }
-
 
     @GetMapping("/orders/{orderId}")
     public ResponseEntity<Map<String, Object>> getOrderDetail(@PathVariable Long orderId) {

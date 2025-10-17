@@ -1,7 +1,7 @@
 package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.Product;
-import com.project.tradingev_batter.Entity.ProductStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Repository.ProductRepository;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ public class ProductServiceImpl implements ProductService {
     public List<Product> getAllActiveProducts() {
         List<Product> allProducts = productRepository.findAll();
         return allProducts.stream()
-                .filter(p -> "DA_DUYET".equals(p.getStatus()) || "DANG_BAN".equals(p.getStatus()))
+                .filter(p -> ProductStatus.DA_DUYET.equals(p.getStatus()) || ProductStatus.DANG_BAN.equals(p.getStatus()))
                 .collect(Collectors.toList());
     }
 
@@ -40,17 +40,14 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
     }
 
-    /**
-     * INTERNAL USE ONLY - Tạo product cơ bản không kiểm tra gói
-     * CHÚ Ý!!!!!!!!!!!!!!: Method này chỉ dùng cho internal logic hoặc Manager/Admin
-     * SELLER PHẢI DÙNG SellerService.createCarProduct() hoặc createBatteryProduct()
-     * để có kiểm tra gói đầy đủ (BR-19)
-     */
+     //INTERNAL USE ONLY - Tạo product cơ bản không kiểm tra gói
+     //CHÚ Ý!!!!!!!!!!!!!!: Method này chỉ dùng cho internal logic hoặc Manager/Admin
+     //SELLER PHẢI DÙNG SellerService.createCarProduct() hoặc createBatteryProduct() để có kiểm tra gói đầy đủ
     @Override
     @Transactional
     public Product createProduct(Product product) {
         product.setCreatedat(new Date());
-        product.setStatus("CHO_DUYET"); // Mặc định chờ duyệt
+        product.setStatus(ProductStatus.CHO_DUYET); // Mặc định chờ duyệt
         product.setInWarehouse(false);
         return productRepository.save(product);
     }

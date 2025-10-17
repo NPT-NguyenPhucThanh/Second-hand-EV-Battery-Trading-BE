@@ -3,11 +3,11 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.ContractsRepository;
 import com.project.tradingev_batter.Repository.NotificationRepository;
-import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.config.DocuSealConfig;
 import com.project.tradingev_batter.dto.docuseal.DocuSealSubmissionRequest;
 import com.project.tradingev_batter.dto.docuseal.DocuSealSubmissionResponse;
 import com.project.tradingev_batter.dto.docuseal.DocuSealWebhookPayload;
+import com.project.tradingev_batter.enums.OrderStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
@@ -26,19 +26,16 @@ public class DocuSealServiceImpl implements DocuSealService {
     private final DocuSealConfig docuSealConfig;
     private final RestTemplate docuSealRestTemplate;
     private final ContractsRepository contractsRepository;
-    private final ProductRepository productRepository;
     private final NotificationRepository notificationRepository;
 
     public DocuSealServiceImpl(
             DocuSealConfig docuSealConfig,
             @Qualifier("docuSealRestTemplate") RestTemplate docuSealRestTemplate,
             ContractsRepository contractsRepository,
-            ProductRepository productRepository,
             NotificationRepository notificationRepository) {
         this.docuSealConfig = docuSealConfig;
         this.docuSealRestTemplate = docuSealRestTemplate;
         this.contractsRepository = contractsRepository;
-        this.productRepository = productRepository;
         this.notificationRepository = notificationRepository;
     }
 
@@ -245,7 +242,7 @@ public class DocuSealServiceImpl implements DocuSealService {
         User seller = contract.getSellers();
 
         // Cập nhật trạng thái đơn hàng sang "Đã ký hợp đồng"
-        order.setStatus("HOP_DONG_HOAN_TAT");
+        order.setStatus(OrderStatus.CHO_DUYET);
 
         // Tạo notification cho buyer
         createNotification(buyer,
@@ -295,6 +292,7 @@ public class DocuSealServiceImpl implements DocuSealService {
     }
 
     //Xử lý khi người ký từ chối
+    @SuppressWarnings("unused")
     private void handleSubmitterDeclined(Contracts contract, DocuSealWebhookPayload.SubmissionData data) {
         log.warn("Submitter declined for contract: {}", contract.getContractid());
 
@@ -376,6 +374,7 @@ public class DocuSealServiceImpl implements DocuSealService {
     // ========================= PRIVATE HELPER METHODS ================================================================
 
     //Tạo submission request cho hợp đồng đăng bán
+    @SuppressWarnings("unused")
     private DocuSealSubmissionRequest buildProductListingRequest(Product product, User seller, User manager) {
         // Tạo submitter cho Seller
         DocuSealSubmissionRequest.Submitter sellerSubmitter = DocuSealSubmissionRequest.Submitter.builder()
@@ -458,6 +457,7 @@ public class DocuSealServiceImpl implements DocuSealService {
     }
 
     //Build fields cho buyer trong hợp đồng mua bán
+    @SuppressWarnings("unused")
     private Map<String, Object> buildBuyerFields(Orders order, User buyer, Product product, String transactionLocation) {
         Map<String, Object> fields = new HashMap<>();
         
@@ -481,6 +481,7 @@ public class DocuSealServiceImpl implements DocuSealService {
     }
 
     //Build fields cho seller trong hợp đồng mua bán
+    @SuppressWarnings("unused")
     private Map<String, Object> buildSellerFields(Orders order, User seller, Product product) {
         Map<String, Object> fields = new HashMap<>();
         

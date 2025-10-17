@@ -2,9 +2,16 @@ package com.project.tradingev_batter;
 
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
+import com.project.tradingev_batter.enums.ProductStatus;
+import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.TransactionStatus;
+import com.project.tradingev_batter.enums.PostStatus;
+import com.project.tradingev_batter.enums.DisputeStatus;
+import com.project.tradingev_batter.enums.RefundStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import jakarta.annotation.PostConstruct;
@@ -15,6 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @SpringBootApplication
+@EnableScheduling
 public class TradingevBatterApplication {
 
     @Autowired
@@ -181,7 +189,7 @@ public class TradingevBatterApplication {
         product.setDescription("Car cũ tốt");
         product.setCost(5000000.0);
         product.setAmount(5);
-        product.setStatus("DA_DUYET");
+        product.setStatus(ProductStatus.DA_DUYET);
         product.setModel("Model1");
         product.setType("Car EV");
         product.setSpecs("Specs here");
@@ -196,7 +204,7 @@ public class TradingevBatterApplication {
         Post post = new Post();
         post.setTitle("Bán pin EV");
         post.setDescription("Post desc");
-        post.setStatus("DA_DUYET");
+        post.setStatus(PostStatus.DA_DUYET);
         post.setCreated_at(new Date());
         post.setUpdated_at(new Date());
         post.setProducts(product);
@@ -229,7 +237,7 @@ public class TradingevBatterApplication {
         order.setPaymentmethod("VnPay");
         order.setCreatedat(new Date());
         order.setUpdatedat(new Date());
-        order.setStatus("CHO_DUYET");
+        order.setStatus(OrderStatus.CHO_DUYET);
         order.setUsers(client);
         order.setAddress(address);
         order = orderRepository.save(order);
@@ -296,7 +304,7 @@ public class TradingevBatterApplication {
         // Seed dispute (link order/manager)
         Dispute dispute = new Dispute();
         dispute.setDescription("Tranh chấp");
-        dispute.setStatus("OPEN");
+        dispute.setStatus(DisputeStatus.OPEN);
         dispute.setCreatedAt((new Date()));
         dispute.setOrder(order);
         //dispute.setResolved_by(manager);
@@ -319,7 +327,7 @@ public class TradingevBatterApplication {
         Refund refund = new Refund();
         refund.setAmount(100000.0);
         refund.setReason("Hoàn tiền");
-        refund.setStatus("PENDING");
+        refund.setStatus(RefundStatus.PENDING);
         refund.setCreatedat(new Date());
         refund.setOrders(order);
         refundRepository.save(refund);
@@ -327,7 +335,7 @@ public class TradingevBatterApplication {
         // Seed transaction (link order/user)
         Transaction transaction = new Transaction();
         transaction.setMethod("VnPay");
-        transaction.setStatus("COMPLETED");
+        transaction.setStatus(TransactionStatus.SUCCESS);
         transaction.setCreatedat(new Date());
         transaction.setOrders(order);
         transaction.setCreatedBy(client);

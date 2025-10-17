@@ -2,6 +2,9 @@ package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
+import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.TransactionStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +20,6 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final TransactionRepository transactionRepository;
     private final NotificationRepository notificationRepository;
-    private final AddressRepository addressRepository;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                            UserRepository userRepository,
@@ -25,8 +27,7 @@ public class OrderServiceImpl implements OrderService {
                            ProductRepository productRepository,
                            CartService cartService,
                            TransactionRepository transactionRepository,
-                           NotificationRepository notificationRepository,
-                           AddressRepository addressRepository) {
+                           NotificationRepository notificationRepository) {
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
         this.orderDetailRepository = orderDetailRepository;
@@ -34,7 +35,6 @@ public class OrderServiceImpl implements OrderService {
         this.cartService = cartService;
         this.transactionRepository = transactionRepository;
         this.notificationRepository = notificationRepository;
-        this.addressRepository = addressRepository;
     }
 
     @Override
@@ -71,8 +71,8 @@ public class OrderServiceImpl implements OrderService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
-        // Kiểm tra sản phẩm có sẵn không
-        if (!"DANG_BAN".equals(product.getStatus()) && !"DA_DUYET".equals(product.getStatus())) {
+        // Kiểm tra sản phẩm có sẵn không - sử dụng enum ProductStatus
+        if (!ProductStatus.DANG_BAN.equals(product.getStatus()) && !ProductStatus.DA_DUYET.equals(product.getStatus())) {
             throw new RuntimeException("Sản phẩm không khả dụng để mua");
         }
         
@@ -88,9 +88,9 @@ public class OrderServiceImpl implements OrderService {
         
         // Set status dựa trên loại sản phẩm
         if ("Car EV".equals(product.getType())) {
-            order.setStatus("CHO_DAT_COC"); // Chờ đặt cọc 10%
+            order.setStatus(OrderStatus.CHO_DAT_COC); // Chờ đặt cọc 10%
         } else {
-            order.setStatus("CHO_XAC_NHAN"); // Pin chờ xác nhận
+            order.setStatus(OrderStatus.CHO_XAC_NHAN); // Pin chờ xác nhận
             // Tính phí ship cho pin
             double shippingFee = calculateShippingFee(shippingAddress);
             order.setShippingfee(shippingFee);
@@ -139,8 +139,8 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingaddress(shippingAddress);
         order.setPaymentmethod(paymentMethod);
         order.setCreatedat(new Date());
-        order.setStatus("CHO_XAC_NHAN");
-        
+        order.setStatus(OrderStatus.CHO_XAC_NHAN);
+
         order = orderRepository.save(order);
         
         // Tạo order details từ cart items
@@ -186,12 +186,12 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
-        if (order.getUsers().getUserid() != userId) {
+        if (!order.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền thực hiện hành động này");
         }
         
         // Kiểm tra trạng thái
-        if (!"CHO_DAT_COC".equals(order.getStatus())) {
+        if (!OrderStatus.CHO_DAT_COC.equals(order.getStatus())) {
             throw new RuntimeException("Đơn hàng không ở trạng thái chờ đặt cọc");
         }
         
@@ -203,12 +203,12 @@ public class OrderServiceImpl implements OrderService {
         transaction.setOrders(order);
         transaction.setCreatedBy(buyer);
         transaction.setMethod(paymentMethod);
-        transaction.setStatus("COMPLETED"); // Giả sử thanh toán thành công (tích hợp VnPay sau)
+        transaction.setStatus(TransactionStatus.SUCCESS); // Giả sử thanh toán thành công (tích hợp VnPay sau)
         transaction.setCreatedat(new Date());
         transaction = transactionRepository.save(transaction);
         
         // Cập nhật trạng thái đơn hàng
-        order.setStatus("CHO_DUYET"); // Chờ manager duyệt
+        order.setStatus(OrderStatus.CHO_DUYET); // Chờ manager duyệt
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         
@@ -231,12 +231,12 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
-        if (order.getUsers().getUserid() != userId) {
+        if (!order.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền thực hiện hành động này");
         }
         
         // Kiểm tra trạng thái (đã duyệt bởi manager)
-        if (!"DA_DUYET".equals(order.getStatus())) {
+        if (!OrderStatus.DA_DUYET.equals(order.getStatus())) {
             throw new RuntimeException("Đơn hàng chưa được duyệt");
         }
         
@@ -248,12 +248,12 @@ public class OrderServiceImpl implements OrderService {
         transaction.setOrders(order);
         transaction.setCreatedBy(buyer);
         transaction.setMethod(paymentMethod);
-        transaction.setStatus("COMPLETED");
+        transaction.setStatus(TransactionStatus.SUCCESS);
         transaction.setCreatedat(new Date());
         transaction = transactionRepository.save(transaction);
         
         // Cập nhật trạng thái đơn hàng thành hoàn tất
-        order.setStatus("DA_HOAN_TAT");
+        order.setStatus(OrderStatus.DA_HOAN_TAT);
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         
@@ -291,7 +291,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
-        if (order.getUsers().getUserid() != userId) {
+        if (!order.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền thực hiện hành động này");
         }
         
@@ -301,12 +301,12 @@ public class OrderServiceImpl implements OrderService {
         }
         
         // Kiểm tra trạng thái
-        if (!"DANG_GIAO".equals(order.getStatus())) {
+        if (!OrderStatus.DA_GIAO.equals(order.getStatus())) {
             throw new RuntimeException("Đơn hàng không ở trạng thái đang giao");
         }
         
         // Cập nhật trạng thái
-        order.setStatus("DA_HOAN_TAT");
+        order.setStatus(OrderStatus.DA_HOAN_TAT);
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         
@@ -330,6 +330,7 @@ public class OrderServiceImpl implements OrderService {
 
     // =============== HELPER METHODS ==================================================================================
     
+    @SuppressWarnings("unused")
     private double calculateShippingFee(String shippingAddress) {
         // Logic tính phí ship đơn giản (có thể tích hợp API giao hàng sau)
         // Giả sử phí cố định hoặc tính theo khoảng cách
