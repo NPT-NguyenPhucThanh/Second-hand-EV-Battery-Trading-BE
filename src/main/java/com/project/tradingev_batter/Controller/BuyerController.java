@@ -11,7 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ public class BuyerController {
     private final ProductService productService;
     private final DocuSealService docuSealService;
     private final VNPayService vnPayService;
+    private final UserService userService;
+    private final ImageUploadService imageUploadService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
@@ -34,7 +38,9 @@ public class BuyerController {
                           DisputeService disputeService,
                           ProductService productService,
                           DocuSealService docuSealService,
-                          VNPayService vnPayService) {
+                          VNPayService vnPayService,
+                          UserService userService,
+                          ImageUploadService imageUploadService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
@@ -42,6 +48,8 @@ public class BuyerController {
         this.productService = productService;
         this.docuSealService = docuSealService;
         this.vnPayService = vnPayService;
+        this.userService = userService;
+        this.imageUploadService = imageUploadService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -250,8 +258,15 @@ public class BuyerController {
                 ));
             }
             
-            // TODO: Lưu thông tin transferOwnership, changePlate vào đâu đó
-            
+            //Lưu thông tin transferOwnership, changePlate vào Orders
+            if (transferOwnership != null) {
+                order.setTransferOwnership(transferOwnership);
+            }
+            if (changePlate != null) {
+                order.setChangePlate(changePlate);
+            }
+            orderService.updateOrder(order);
+
             // REDIRECT SANG PAYMENT CONTROLLER
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
@@ -384,8 +399,114 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
+    //YÊU CẦU NÂNG CẤP LÊN SELLER
+    //Buyer gửi yêu cầu với CCCD và giấy tờ xe
+    @PostMapping("/request-seller-upgrade")
+    public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
+            @RequestParam("cccdFront") MultipartFile cccdFront,
+            @RequestParam("cccdBack") MultipartFile cccdBack,
+            @RequestParam(value = "vehicleRegistration", required = false) MultipartFile vehicleRegistration) {
+
+        User buyer = getCurrentUser();
+
+        try {
+            // Kiểm tra đã có role Seller chưa
+            boolean isSeller = buyer.getRoles().stream()
+                    .anyMatch(role -> "SELLER".equals(role.getRolename()));
+
+            if (isSeller) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Bạn đã là Seller rồi"
+                ));
+            }
+
+            // Kiểm tra đã có yêu cầu pending chưa
+            if ("PENDING".equals(buyer.getSellerUpgradeStatus())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Bạn đã có yêu cầu đang chờ xét duyệt"
+                ));
+            }
+
+            // Upload CCCD front
+            String cccdFrontUrl = imageUploadService.uploadImage(cccdFront, "seller_upgrade/cccd_front_" + buyer.getUserid());
+            buyer.setCccdFrontUrl(cccdFrontUrl);
+
+            // Upload CCCD back
+            String cccdBackUrl = imageUploadService.uploadImage(cccdBack, "seller_upgrade/cccd_back_" + buyer.getUserid());
+            buyer.setCccdBackUrl(cccdBackUrl);
+
+            // Upload vehicle registration nếu có
+            if (vehicleRegistration != null && !vehicleRegistration.isEmpty()) {
+                String vehicleRegUrl = imageUploadService.uploadImage(vehicleRegistration, "seller_upgrade/vehicle_" + buyer.getUserid());
+                buyer.setVehicleRegistrationUrl(vehicleRegUrl);
+            }
+
+            // Cập nhật status
+            buyer.setSellerUpgradeStatus("PENDING");
+            buyer.setSellerUpgradeRequestDate(new Date());
+            userService.updateUser(buyer.getUserid(), buyer);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Yêu cầu nâng cấp lên Seller đã được gửi. Vui lòng chờ Manager xét duyệt.");
+            response.put("requestDate", buyer.getSellerUpgradeRequestDate());
+            response.put("uploadedDocuments", Map.of(
+                "cccdFront", cccdFrontUrl,
+                "cccdBack", cccdBackUrl,
+                "vehicleRegistration", buyer.getVehicleRegistrationUrl() != null ? buyer.getVehicleRegistrationUrl() : "N/A"
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Không thể upload tài liệu: " + e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    //XEM TRẠNG THÁI YÊU CẦU NÂNG CẤP
+    @GetMapping("/seller-upgrade-status")
+    public ResponseEntity<Map<String, Object>> getSellerUpgradeStatus() {
+        User buyer = getCurrentUser();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+
+        if (buyer.getSellerUpgradeStatus() == null) {
+            response.put("upgradeStatus", "NOT_REQUESTED");
+            response.put("message", "Bạn chưa gửi yêu cầu nâng cấp");
+        } else {
+            response.put("upgradeStatus", buyer.getSellerUpgradeStatus());
+            response.put("requestDate", buyer.getSellerUpgradeRequestDate());
+
+            switch (buyer.getSellerUpgradeStatus()) {
+                case "PENDING":
+                    response.put("message", "Yêu cầu đang chờ Manager xét duyệt");
+                    break;
+                case "APPROVED":
+                    response.put("message", "Yêu cầu đã được chấp nhận. Bạn đã là Seller!");
+                    break;
+                case "REJECTED":
+                    response.put("message", "Yêu cầu bị từ chối");
+                    response.put("rejectionReason", buyer.getRejectionReason());
+                    break;
+            }
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
     // =============== HELPER METHODS ==================================================================================
     
+    private String uploadImageToCloudinary(MultipartFile file, String folderPath) throws Exception {
+        // Sử dụng ImageUploadService có sẵn
+        return imageUploadService.uploadImage(file, folderPath);
+    }
+
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {

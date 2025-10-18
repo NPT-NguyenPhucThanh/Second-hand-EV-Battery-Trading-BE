@@ -16,6 +16,9 @@ public interface OrderService {
     Orders createOrderFromProduct(Long userId, Long productId, int quantity, String shippingAddress, String paymentMethod);
     Orders createOrderFromCart(Long userId, String shippingAddress, String paymentMethod);
     
+    // Cập nhật đơn hàng
+    Orders updateOrder(Orders order);
+
     // Kiểm tra loại đơn hàng
     boolean isCarOrder(Orders order);
     boolean isBatteryOrder(Orders order);

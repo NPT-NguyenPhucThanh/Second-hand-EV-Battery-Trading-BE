@@ -57,6 +57,9 @@ public class Product {
     @Column(name = "in_warehouse")
     private Boolean inWarehouse = false;
 
+    @Column(name = "view_count")
+    private Integer viewCount = 0; // Đếm lượt xem sản phẩm
+
     @ManyToOne
     @JoinColumn(name = "userid")
     private User users;

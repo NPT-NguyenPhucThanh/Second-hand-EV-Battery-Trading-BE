@@ -46,6 +46,21 @@ public class Orders {
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
+    @Column(name = "package_id")
+    private Long packageId; // Lưu ID gói dịch vụ khi order là mua gói
+
+    @Column(name = "transaction_location")
+    private String transactionLocation; // Điểm giao dịch (cho đơn xe)
+
+    @Column(name = "appointment_date")
+    private Date appointmentDate; // Thời gian hẹn giao dịch
+
+    @Column(name = "transfer_ownership")
+    private Boolean transferOwnership = false; // Có sang tên xe không
+
+    @Column(name = "change_plate")
+    private Boolean changePlate = false; // Có đổi biển số không
+
     @OneToMany(mappedBy = "orders")
     private List<Contracts>  contracts = new ArrayList<>();
 

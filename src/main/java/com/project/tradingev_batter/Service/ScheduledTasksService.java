@@ -1,9 +1,15 @@
 package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.Transaction;
+import com.project.tradingev_batter.Entity.UserPackage;
 import com.project.tradingev_batter.Repository.OrderRepository;
+import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Repository.TransactionRepository;
+import com.project.tradingev_batter.Repository.UserPackageRepository;
+import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,9 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 
-//1. Release escrow sau 7 ngày (giải phóng tiền cho seller)
-//2. Cancel pending transactions quá hạn
-//3. Auto-confirm battery orders sau 3 ngày không khiếu nại
+// 1. Release escrow sau 7 ngay (giai phong tien cho seller)
+// 2. Cancel pending transactions qua han
+// 3. Auto-confirm battery orders sau 3 ngay khong khieu nai
+// 4. Auto-hide products khi het han goi
 
 @Service
 @Slf4j
@@ -23,11 +30,20 @@ public class ScheduledTasksService {
 
     private final TransactionRepository transactionRepository;
     private final OrderRepository orderRepository;
+    private final ProductRepository productRepository;
+    private final UserPackageRepository userPackageRepository;
+    private final NotificationService notificationService;
 
     public ScheduledTasksService(TransactionRepository transactionRepository,
-                                 OrderRepository orderRepository) {
+                                 OrderRepository orderRepository,
+                                 ProductRepository productRepository,
+                                 UserPackageRepository userPackageRepository,
+                                 NotificationService notificationService) {
         this.transactionRepository = transactionRepository;
         this.orderRepository = orderRepository;
+        this.productRepository = productRepository;
+        this.userPackageRepository = userPackageRepository;
+        this.notificationService = notificationService;
     }
 
 
@@ -52,17 +68,14 @@ public class ScheduledTasksService {
             
             for (Transaction transaction : readyToRelease) {
                 try {
-                    // Giải phóng tiền
+                    // Giai phong tien
                     transaction.setIsEscrowed(false);
                     transaction.setStatus(TransactionStatus.SUCCESS);
                     transactionRepository.save(transaction);
                     
-                    // TODO: Tích hợp VNPay để chuyển tiền thật cho seller
-                    // Hiện tại chỉ update status trong DB
-                    
                     Orders order = transaction.getOrders();
                     double totalAmount = transaction.getAmount();
-                    double commission = totalAmount * 0.05; // 5% hoa hồng
+                    double commission = totalAmount * 0.05;
                     double sellerReceives = totalAmount - commission;
                     
                     log.info("Escrow released for transaction {}: Order #{}, Amount: {}, Commission: {}, Seller receives: {}",
@@ -72,8 +85,10 @@ public class ScheduledTasksService {
                             commission,
                             sellerReceives);
                     
-                    // TODO: Tạo notification cho seller
-                    
+                    // GUI NOTIFICATION CHO SELLER
+                    Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
+                    notificationService.notifyEscrowReleased(sellerId, order.getOrderid(), totalAmount, commission);
+
                 } catch (Exception e) {
                     log.error("Error releasing escrow for transaction {}", 
                             transaction.getTransactionCode(), e);
@@ -95,7 +110,6 @@ public class ScheduledTasksService {
         try {
             log.info("Starting expired pending transactions cleanup...");
             
-            // Tìm transaction pending quá 2 giờ (VNPay timeout 1 giờ + buffer 1 giờ)
             Date expiredDate = new Date(System.currentTimeMillis() - (2 * 60 * 60 * 1000));
             List<Transaction> expiredTransactions = transactionRepository
                     .findExpiredPendingTransactions(expiredDate);
@@ -114,8 +128,14 @@ public class ScheduledTasksService {
                     
                     log.info("Cancelled expired transaction: {}", transaction.getTransactionCode());
                     
-                    // TODO: Tạo notification cho user
-                    
+                    // GUI NOTIFICATION CHO USER
+                    if (transaction.getCreatedBy() != null) {
+                        notificationService.notifyTransactionCancelled(
+                            transaction.getCreatedBy().getUserid(),
+                            transaction.getTransactionCode()
+                        );
+                    }
+
                 } catch (Exception e) {
                     log.error("Error cancelling transaction {}", 
                             transaction.getTransactionCode(), e);
@@ -129,5 +149,128 @@ public class ScheduledTasksService {
         }
     }
 
-    // TODO: Thêm scheduled task cho auto-confirm battery orders sau 3 ngày
+    // AUTO-CONFIRM BATTERY ORDERS sau 3 ngay
+    // Chay moi ngay luc 3 gio sang
+    @Scheduled(cron = "0 0 3 * * ?")
+    @Transactional
+    public void autoConfirmBatteryOrders() {
+        try {
+            log.info("Starting auto-confirm battery orders job...");
+
+            Date threeDaysAgo = new Date(System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000));
+
+            List<Orders> ordersToConfirm = orderRepository.findAll().stream()
+                    .filter(order -> {
+                        boolean isBatteryOrder = order.getDetails() != null &&
+                                order.getDetails().stream()
+                                .anyMatch(detail -> "BATTERY".equals(detail.getProducts().getType()));
+
+                        boolean isDelivered = OrderStatus.DA_GIAO.equals(order.getStatus());
+
+                        boolean isOverThreeDays = order.getUpdatedat() != null &&
+                                order.getUpdatedat().before(threeDaysAgo);
+
+                        return isBatteryOrder && isDelivered && isOverThreeDays;
+                    })
+                    .toList();
+
+            if (ordersToConfirm.isEmpty()) {
+                log.info("No battery orders ready to auto-confirm");
+                return;
+            }
+
+            log.info("Found {} battery orders ready to auto-confirm", ordersToConfirm.size());
+
+            for (Orders order : ordersToConfirm) {
+                try {
+                    order.setStatus(OrderStatus.DA_HOAN_TAT);
+                    order.setUpdatedat(new Date());
+                    orderRepository.save(order);
+
+                    log.info("Auto-confirmed battery order #{}", order.getOrderid());
+
+                    // GUI NOTIFICATION CHO BUYER VA SELLER
+                    Long buyerId = order.getUsers().getUserid();
+                    Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
+                    notificationService.notifyBatteryOrderAutoConfirmed(buyerId, sellerId, order.getOrderid());
+
+                } catch (Exception e) {
+                    log.error("Error auto-confirming order {}", order.getOrderid(), e);
+                }
+            }
+
+            log.info("Auto-confirm battery orders job completed. Confirmed: {} orders", ordersToConfirm.size());
+
+        } catch (Exception e) {
+            log.error("Error in auto-confirm battery orders job", e);
+        }
+    }
+
+    // AUTO-HIDE PRODUCTS khi het han goi
+    // Chay moi ngay luc 4 gio sang
+    @Scheduled(cron = "0 0 4 * * ?")
+    @Transactional
+    public void autoHideExpiredProducts() {
+        try {
+            log.info("Starting auto-hide expired products job...");
+
+            Date currentDate = new Date();
+
+            List<UserPackage> expiredPackages = userPackageRepository.findAll().stream()
+                    .filter(pkg -> pkg.getExpiryDate() != null && pkg.getExpiryDate().before(currentDate))
+                    .toList();
+
+            if (expiredPackages.isEmpty()) {
+                log.info("No expired packages found");
+                return;
+            }
+
+            log.info("Found {} expired packages", expiredPackages.size());
+
+            int totalProductsHidden = 0;
+
+            for (UserPackage userPackage : expiredPackages) {
+                try {
+                    Long userId = userPackage.getUser().getUserid();
+
+                    List<Product> userProducts = productRepository.findByUsers_Userid(userId).stream()
+                            .filter(product ->
+                                ProductStatus.DANG_BAN.equals(product.getStatus()) ||
+                                ProductStatus.DA_DUYET.equals(product.getStatus())
+                            )
+                            .toList();
+
+                    if (userProducts.isEmpty()) {
+                        continue;
+                    }
+
+                    int hiddenCount = 0;
+                    for (Product product : userProducts) {
+                        product.setStatus(ProductStatus.HET_HAN);
+                        product.setUpdatedat(new Date());
+                        productRepository.save(product);
+
+                        log.info("Hidden product {} (User: {}) due to expired package",
+                                product.getProductid(), userId);
+                        hiddenCount++;
+                        totalProductsHidden++;
+                    }
+
+                    // GUI NOTIFICATION CHO SELLER
+                    if (hiddenCount > 0) {
+                        notificationService.notifyPackageExpired(userId, hiddenCount);
+                    }
+
+                } catch (Exception e) {
+                    log.error("Error hiding products for user package {}",
+                            userPackage.getUserpackageid(), e);
+                }
+            }
+
+            log.info("Auto-hide expired products job completed. Hidden: {} products", totalProductsHidden);
+
+        } catch (Exception e) {
+            log.error("Error in auto-hide expired products job", e);
+        }
+    }
 }

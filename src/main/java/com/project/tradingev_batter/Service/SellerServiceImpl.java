@@ -25,6 +25,7 @@ public class SellerServiceImpl implements SellerService {
     private final OrderRepository orderRepository;
     private final ImageUploadService imageUploadService;
     private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     public SellerServiceImpl(UserRepository userRepository,
                             PackageServiceRepository packageServiceRepository,
@@ -35,7 +36,8 @@ public class SellerServiceImpl implements SellerService {
                             ProductImgRepository productImgRepository,
                             OrderRepository orderRepository,
                             ImageUploadService imageUploadService,
-                            NotificationRepository notificationRepository) {
+                            NotificationRepository notificationRepository,
+                            NotificationService notificationService) {
         this.userRepository = userRepository;
         this.packageServiceRepository = packageServiceRepository;
         this.userPackageRepository = userPackageRepository;
@@ -46,6 +48,7 @@ public class SellerServiceImpl implements SellerService {
         this.orderRepository = orderRepository;
         this.imageUploadService = imageUploadService;
         this.notificationRepository = notificationRepository;
+        this.notificationService = notificationService;
     }
 
     //TẠO ORDER MUA GÓI - Tạo order mua gói (chưa active UserPackage)
@@ -59,17 +62,17 @@ public class SellerServiceImpl implements SellerService {
         PackageService packageService = packageServiceRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
         
-        // VALIDATE - Phải mua đúng loại gói
+        // VALIDATE - Phai mua dung loai goi
         // Nếu gói XE thì maxBatteries phải = 0
         // Nếu gói PIN thì maxCars phải = 0
         if ("CAR".equals(packageService.getPackageType()) && packageService.getMaxBatteries() > 0) {
-            throw new RuntimeException("Gói xe không được có maxBatteries");
+            throw new RuntimeException("Goi xe khong duoc co maxBatteries");
         }
         if ("BATTERY".equals(packageService.getPackageType()) && packageService.getMaxCars() > 0) {
-            throw new RuntimeException("Gói pin không được có maxCars");
+            throw new RuntimeException("Goi pin khong duoc co maxCars");
         }
         
-        // Tạo order mua gói (giống order bình thường)
+        // Tao order mua goi
         Orders order = new Orders();
         order.setTotalamount(packageService.getPrice());
         order.setShippingfee(0);
@@ -79,12 +82,8 @@ public class SellerServiceImpl implements SellerService {
         order.setCreatedat(new Date());
         order.setStatus(com.project.tradingev_batter.enums.OrderStatus.CHO_THANH_TOAN);
         order.setUsers(seller);
+        order.setPackageId(packageId);
         order = orderRepository.save(order);
-        
-        // TODO: Lưu packageId vào đâu đó để biết order này mua gói nào
-        // Option 1: Thêm field packageId vào Order
-        // Option 2: Tạo bảng PackagePurchaseOrder riêng
-        // Tạm thời lưu vào description của Order_detail (workaround)
         
         Map<String, Object> result = new HashMap<>();
         result.put("orderId", order.getOrderid());
@@ -93,10 +92,11 @@ public class SellerServiceImpl implements SellerService {
         result.put("packagePrice", packageService.getPrice());
         result.put("packageType", packageService.getPackageType());
         
-        // Tạo notification
-        createNotification(seller, "Đơn hàng mua gói đã tạo", 
-                "Vui lòng thanh toán đơn hàng #" + order.getOrderid() + " để kích hoạt gói " + packageService.getName());
-        
+        // SU DUNG NOTIFICATIONSERVICE thay vi tao truc tiep
+        notificationService.createNotification(seller.getUserid(),
+            "Don hang mua goi da tao",
+            "Vui long thanh toan don hang #" + order.getOrderid() + " de kich hoat goi " + packageService.getName());
+
         return result;
     }
 
@@ -111,31 +111,32 @@ public class SellerServiceImpl implements SellerService {
         PackageService packageService = packageServiceRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
         
-        // Tạo UserPackage mới
+        // Tao UserPackage moi
         UserPackage userPackage = new UserPackage();
         userPackage.setUser(seller);
         userPackage.setPackageService(packageService);
         userPackage.setPurchaseDate(new Date());
         
-        // Tính expiry date
+        // Tinh expiry date
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(new Date());
         calendar.add(Calendar.MONTH, packageService.getDurationMonths());
         userPackage.setExpiryDate(calendar.getTime());
         
-        // Set số lượt đăng
+        // Set so luot dang
         userPackage.setRemainingCars(packageService.getMaxCars());
         userPackage.setRemainingBatteries(packageService.getMaxBatteries());
         
         userPackageRepository.save(userPackage);
         
-        // BR-31: VALIDATE - Kiểm tra lại loại gói
+        // BR-31: VALIDATE - Kiem tra lai loai goi
         validatePackageType(packageService);
         
-        // Tạo notification
-        createNotification(seller, "Kích hoạt gói thành công", 
-                "Gói " + packageService.getName() + " đã được kích hoạt. Hạn sử dụng đến " + userPackage.getExpiryDate());
-        
+        // SU DUNG NOTIFICATIONSERVICE
+        notificationService.createNotification(seller.getUserid(),
+            "Kich hoat goi thanh cong",
+            "Goi " + packageService.getName() + " da duoc kich hoat. Han su dung den " + userPackage.getExpiryDate());
+
         return userPackage;
     }
 
@@ -172,29 +173,31 @@ public class SellerServiceImpl implements SellerService {
         UserPackage currentPackage = getCurrentPackage(sellerId);
         
         if (currentPackage != null && !isPackageExpired(currentPackage)) {
-            // Gia hạn từ ngày hết hạn hiện tại
+            // Gia han tu ngay het han hien tai
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(currentPackage.getExpiryDate());
             calendar.add(Calendar.MONTH, packageService.getDurationMonths());
             currentPackage.setExpiryDate(calendar.getTime());
             
-            // Cộng thêm lượt đăng
+            // Cong them luot dang
             currentPackage.setRemainingCars(currentPackage.getRemainingCars() + packageService.getMaxCars());
             currentPackage.setRemainingBatteries(currentPackage.getRemainingBatteries() + packageService.getMaxBatteries());
             
             userPackageRepository.save(currentPackage);
             
-            createNotification(seller, "Gia hạn gói thành công", 
-                    "Gói của bạn đã được gia hạn đến " + currentPackage.getExpiryDate());
-            
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.createNotification(seller.getUserid(),
+                "Gia han goi thanh cong",
+                "Goi cua ban da duoc gia han den " + currentPackage.getExpiryDate());
+
             return currentPackage;
         } else {
-            // Mua gói mới
+            // Mua goi moi
             return activatePackageAfterPayment(sellerId, packageId);
         }
     }
 
-    //BR-31: KIỂM TRA XEM SELLER CÓ GÓI XE HỢP LỆ KHÔNG
+    //KIỂM TRA XEM SELLER CÓ GÓI XE HỢP LỆ KHÔNG
     //Seller phải có gói packageType = "CAR" còn lượt đăng
     @Override
     public boolean canPostCar(Long sellerId) {
@@ -205,7 +208,7 @@ public class SellerServiceImpl implements SellerService {
     }
 
 
-    //BR-31: KIỂM TRA XEM SELLER CÓ GÓI PIN HỢP LỆ KHÔNG
+    //KIỂM TRA XEM SELLER CÓ GÓI PIN HỢP LỆ KHÔNG
     //Seller phải có gói packageType = "BATTERY" còn lượt đăng
     @Override
     public boolean canPostBattery(Long sellerId) {
@@ -215,7 +218,7 @@ public class SellerServiceImpl implements SellerService {
                currentBatteryPackage.getRemainingBatteries() > 0;
     }
     
-    //BR-31: LẤY GÓI HIỆN TẠI THEO LOẠI (CAR hoặc BATTERY)
+    //LẤY GÓI HIỆN TẠI THEO LOẠI (CAR hoặc BATTERY)
     private UserPackage getCurrentPackageByType(Long sellerId, String packageType) {
         List<UserPackage> packages = userPackageRepository.findByUser_UseridOrderByExpiryDateDesc(sellerId);
         
@@ -275,7 +278,7 @@ public class SellerServiceImpl implements SellerService {
         userPackageRepository.save(currentCarPackage);
         
         // Tạo notification cho seller
-        createNotification(seller, "Đăng xe thành công", 
+        notificationService.createNotification(seller.getUserid(), "Đăng xe thành công",
                 "Xe " + productname + " đã được đăng. Đang chờ kiểm định.");
         
         // TODO: Tạo notification cho manager để duyệt
@@ -332,7 +335,7 @@ public class SellerServiceImpl implements SellerService {
         userPackageRepository.save(currentBatteryPackage);
         
         // Tạo notification cho seller
-        createNotification(seller, "Đăng pin thành công", 
+        notificationService.createNotification(seller.getUserid(), "Đăng pin thành công",
                 "Pin " + productname + " đã được đăng và hiển thị ngay lập tức.");
         
         return product;
@@ -542,14 +545,5 @@ public class SellerServiceImpl implements SellerService {
         } else {
             throw new RuntimeException("packageType phải là CAR hoặc BATTERY");
         }
-    }
-    
-    private void createNotification(User user, String title, String description) {
-        Notification notification = new Notification();
-        notification.setTitle(title);
-        notification.setDescription(description);
-        notification.setCreated_time(new Date());
-        notification.setUsers(user);
-        notificationRepository.save(notification);
     }
 }

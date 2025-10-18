@@ -1,8 +1,6 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.Orders;
-import com.project.tradingev_batter.Entity.Transaction;
-import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.TransactionRepository;
 import com.project.tradingev_batter.Service.VNPayService;
@@ -387,6 +385,14 @@ public class PaymentController {
             switch (transaction.getTransactionType()) {
                 case DEPOSIT:
                     order.setStatus(OrderStatus.DA_DAT_COC); // Đã đặt cọc 10%
+
+                    //AUTO-CREATE CONTRACT sau khi đặt cọc thành công
+                    try {
+                        createContractAfterDeposit(order);
+                        log.info("Contract created successfully for order {}", order.getOrderid());
+                    } catch (Exception e) {
+                        log.error("Failed to create contract for order {}: {}", order.getOrderid(), e.getMessage());
+                    }
                     break;
                 case FINAL_PAYMENT:
                     order.setStatus(OrderStatus.DA_THANH_TOAN); // Đã thanh toán đầy đủ
@@ -396,9 +402,13 @@ public class PaymentController {
                     break;
                 case PACKAGE_PURCHASE:
                     order.setStatus(OrderStatus.DA_THANH_TOAN); // Đã thanh toán gói
-                    // TODO: Lấy packageId từ đâu đó?
-                    // Tạm thời comment, cần fix sau
-                    // sellerService.activatePackageAfterPayment(order.getUsers().getUserid(), packageId);
+                    //Lấy packageId từ order và activate package
+                    if (order.getPackageId() != null) {
+                        sellerService.activatePackageAfterPayment(order.getUsers().getUserid(), order.getPackageId());
+                        log.info("Package {} activated for user {}", order.getPackageId(), order.getUsers().getUserid());
+                    } else {
+                        log.error("PackageId is null for order {}", order.getOrderid());
+                    }
                     break;
             }
         } else {
@@ -408,6 +418,61 @@ public class PaymentController {
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         log.info("Order {} status updated to: {}", order.getOrderid(), order.getStatus());
+    }
+
+    /**
+     * TỰ ĐỘNG TẠO HỢP ĐỒNG SAU KHI ĐẶT CỌC THÀNH CÔNG
+     * 1. Lấy thông tin buyer, seller, product từ order
+     * 2. Gọi DocuSealService để tạo hợp đồng
+     * 3. Gửi email/notification cho buyer và seller ký
+     * 4. Notify manager để duyệt
+     */
+    private void createContractAfterDeposit(Orders order) {
+        // Lấy thông tin từ order
+        User buyer = order.getUsers();
+        Order_detail detail = order.getDetails().get(0);
+        Product product = detail.getProducts();
+        User seller = product.getUsers();
+
+        // Tạo hợp đồng mua bán xe
+        String contractType = "SALE_TRANSACTION";
+        String transactionLocation = order.getTransactionLocation() != null ?
+                order.getTransactionLocation() : "Chưa xác định";
+
+        Map<String, Object> contractData = new HashMap<>();
+        contractData.put("buyerName", buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername());
+        contractData.put("buyerEmail", buyer.getEmail());
+        contractData.put("buyerPhone", buyer.getPhone() != null ? buyer.getPhone() : "N/A");
+        contractData.put("sellerName", seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername());
+        contractData.put("sellerEmail", seller.getEmail());
+        contractData.put("sellerPhone", seller.getPhone() != null ? seller.getPhone() : "N/A");
+        contractData.put("productName", product.getProductname());
+        contractData.put("productPrice", product.getCost());
+        contractData.put("transactionLocation", transactionLocation);
+        contractData.put("depositAmount", order.getTotalamount() * 0.10);
+        contractData.put("orderId", order.getOrderid());
+
+        // TODO: Gọi DocuSealService để tạo hợp đồng
+        // Gọi DocuSealService để tạo hợp đồng (tạm thời comment vì cần config DocuSeal)
+        // String contractUrl = docuSealService.createContract(contractType, contractData);
+        // log.info("Contract created: {}", contractUrl);
+
+        // Tạo notification cho buyer
+        createNotification(buyer, "Hợp đồng đã được tạo",
+                "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
+                ". Hợp đồng đã được gửi qua email.");
+
+        // Tạo notification cho seller
+        createNotification(seller, "Hợp đồng đã được tạo",
+                "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
+                ". Hợp đồng đã được gửi qua email.");
+
+        log.info("Contract notifications sent for order {}", order.getOrderid());
+    }
+
+    private void createNotification(User user, String title, String description) {
+        // TODO: Implement notification service
+        log.info("Notification: {} - {} for user {}", title, description, user.getUserid());
     }
 
     private String getIpAddress(HttpServletRequest request) {

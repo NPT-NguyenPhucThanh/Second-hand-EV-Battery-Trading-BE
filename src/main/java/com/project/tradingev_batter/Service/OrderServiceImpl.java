@@ -59,6 +59,12 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
     }
 
+    @Override
+    @Transactional
+    public Orders updateOrder(Orders order) {
+        order.setUpdatedat(new Date());
+        return orderRepository.save(order);
+    }
 
     //Tạo đơn hàng từ 1 sản phẩm (Mua ngay)
     @Override
@@ -291,8 +297,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
-        if (!order.getUsers().getUserid().equals(userId)) {
-            throw new RuntimeException("Bạn không có quyền thực hiện hành động này");
+        if (!order.getUsers().getUserid().equals(userId)) {throw new RuntimeException("Bạn không có quyền thực hiện hành động này");
         }
         
         // Kiểm tra là đơn hàng pin

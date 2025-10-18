@@ -34,6 +34,7 @@ public class ManagerServiceImpl implements ManagerService {
     private final PackageServiceRepository packageServiceRepository;
     private final RefundRepository refundRepository;
     private final DocuSealService docuSealService;
+    private final NotificationService notificationService;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
@@ -43,7 +44,8 @@ public class ManagerServiceImpl implements ManagerService {
                               RoleRepository roleRepository,
                               PackageServiceRepository packageServiceRepository,
                               RefundRepository refundRepository,
-                              DocuSealService docuSealService) {
+                              DocuSealService docuSealService,
+                              NotificationService notificationService) {
         this.refundRepository = refundRepository;
         this.packageServiceRepository = packageServiceRepository;
         this.docuSealService = docuSealService;
@@ -53,6 +55,7 @@ public class ManagerServiceImpl implements ManagerService {
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.disputeRepository = disputeRepository;
+        this.notificationService = notificationService;
     }
 
     //Sử dụng Notification entity. Khi seller đăng product (xe), tự động tạo notification cho managers.
@@ -75,20 +78,26 @@ public class ManagerServiceImpl implements ManagerService {
     public void approvePreliminaryProduct(Long productId, String note, boolean approved) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
+
         if (approved) {
             product.setStatus(ProductStatus.CHO_KIEM_DUYET);
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.notifyProductApproved(
+                product.getUsers().getUserid(),
+                productId,
+                product.getProductname()
+            );
         } else {
             product.setStatus(ProductStatus.BI_TU_CHOI);
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.notifyProductRejected(
+                product.getUsers().getUserid(),
+                productId,
+                product.getProductname(),
+                note
+            );
         }
         productRepository.save(product);
-
-        //tạo noti cho seller với note
-        User seller = product.getUsers();
-        Notification notification = new Notification();
-        notification.setTitle(approved ? "Xe được duyệt" : "Xe bị từ chối");
-        notification.setDescription(note);
-        notification.setUsers(seller);
-        notificationRepository.save(notification);
     }
 
     //Nhập kết quả kiểm định từ bên thứ 3
@@ -104,47 +113,49 @@ public class ManagerServiceImpl implements ManagerService {
         if (passed) {
             product.setStatus(ProductStatus.DA_DUYET);
 
-            //TẠO HỢP ĐỒNG ĐIỆN TỬ QUA DOCUSEAL
+            // TAO HOP DONG DIEN TU QUA DOCUSEAL
             User seller = product.getUsers();
             User manager = getCurrentManager();
             
             try {
-                // Gọi DocuSealService để tạo hợp đồng đăng bán
+                // Goi DocuSealService de tao hop dong dang ban
                 Contracts contract = docuSealService.createProductListingContract(product, seller, manager);
                 
                 log.info("Product listing contract created via DocuSeal. Contract ID: {}, Submission ID: {}",
                         contract.getContractid(), contract.getDocusealSubmissionId());
                 
-                // Notification đã được tạo trong DocuSealService
-                
+                // SU DUNG NOTIFICATIONSERVICE
+                notificationService.notifyProductApproved(
+                    seller.getUserid(),
+                    productId,
+                    product.getProductname()
+                );
+
             } catch (Exception e) {
                 log.error("Error creating DocuSeal contract for product: {}", productId, e);
                 
-                // Nếu có lỗi, vẫn thông báo cho seller nhưng với thông tin lỗi
-                Notification errorNotif = new Notification();
-                errorNotif.setTitle("Lỗi tạo hợp đồng điện tử");
-                errorNotif.setDescription("Có lỗi xảy ra khi tạo hợp đồng điện tử. Vui lòng liên hệ hỗ trợ. Lỗi: " + e.getMessage());
-                errorNotif.setUsers(seller);
-                errorNotif.setCreated_time(new Date());
-                notificationRepository.save(errorNotif);
-                
-                // Có thể revert status về CHO_DUYET hoặc để manager xử lý
+                // SU DUNG NOTIFICATIONSERVICE cho loi
+                notificationService.createNotification(
+                    seller.getUserid(),
+                    "Loi tao hop dong dien tu",
+                    "Co loi xay ra khi tao hop dong dien tu. Vui long lien he ho tro. Loi: " + e.getMessage()
+                );
+
+                // Revert status
                 product.setStatus(ProductStatus.CHO_KIEM_DUYET);
             }
             
         } else {
             product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH);
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.notifyProductFailedInspection(
+                product.getUsers().getUserid(),
+                productId,
+                product.getProductname()
+            );
         }
         
         productRepository.save(product);
-        
-        // Tạo notification về kết quả kiểm định
-        Notification noteNotif = new Notification();
-        noteNotif.setTitle(passed ? "Kiểm định thành công" : "Kiểm định thất bại");
-        noteNotif.setDescription(note);
-        noteNotif.setCreated_time(new Date());
-        noteNotif.setUsers(product.getUsers());
-        notificationRepository.save(noteNotif);
     }
 
     @Override
@@ -175,40 +186,29 @@ public class ManagerServiceImpl implements ManagerService {
     public void approveOrder(Long orderId, boolean approved, String note) {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+
         if(approved){
             order.setStatus(OrderStatus.DA_DUYET);
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.notifyOrderApproved(
+                order.getUsers().getUserid(),
+                orderId,
+                order.getAppointmentDate(),
+                order.getTransactionLocation()
+            );
         } else {
             order.setStatus(OrderStatus.BI_TU_CHOI);
-            double depositeAmount = order.getTotalamount() * 0.1; //10% tiền cọc
+            double depositeAmount = order.getTotalamount() * 0.1;
             processOrderRefundIfRejected(orderId, depositeAmount);
-//            //xử lý hoàn tiền
-//            List<Refund> existingRefunds = refundRepository.findByOrders(order);
-//            if(existingRefunds.isEmpty()) {
-//                Refund refund = new Refund();
-//                refund.setAmount(depositeAmount);
-//                refund.setReason("Đơn hàng bị từ chối");
-//                refund.setStatus("PENDING");
-//                refund.setOrders(order);
-//                refundRepository.save(refund);
-            }
-        orderRepository.save(order);
 
-        //tạo noti cho buyer
-        Notification buyerNoti = new Notification();
-        buyerNoti.setTitle(approved ? "Đơn hàng được duyệt" : "Đơn hàng bị từ chối");
-        buyerNoti.setDescription(note);
-        buyerNoti.setUsers(order.getUsers());
-        notificationRepository.save(buyerNoti);
-
-        //ở đây có thể gửi cho seller (từ product trong order_detail) nếu cần
-        if (!order.getDetails().isEmpty()) {
-            User seller = order.getDetails().get(0).getProducts().getUsers();
-            Notification sellerNotif = new Notification();
-            sellerNotif.setTitle(approved ? "Đơn hàng được duyệt" : "Đơn hàng bị từ chối");
-            sellerNotif.setDescription(note);
-            sellerNotif.setUsers(seller);
-            notificationRepository.save(sellerNotif);
+            // SU DUNG NOTIFICATIONSERVICE
+            notificationService.notifyOrderRejected(
+                order.getUsers().getUserid(),
+                orderId,
+                note
+            );
         }
+        orderRepository.save(order);
     }
 
     //Giải quyết tranh chấp

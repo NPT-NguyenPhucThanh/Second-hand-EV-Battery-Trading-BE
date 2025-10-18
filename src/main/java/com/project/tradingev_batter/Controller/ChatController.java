@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.Chatroom;
 import com.project.tradingev_batter.Entity.Message;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.ChatService;
+import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.dto.ChatMessageDTO;
 import com.project.tradingev_batter.dto.ChatroomRequest;
 import com.project.tradingev_batter.security.CustomUserDetails;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 
 /**
  * ChatController - Xử lý WebSocket cho chat real-time và REST API cho quản lý chatroom
- * 
  * WebSocket Flow:
  * 1. Client connect: ws://localhost:8080/ws-chat
  * 2. Client subscribe: /topic/chatroom/{chatroomId}
@@ -35,10 +35,14 @@ public class ChatController {
 
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final NotificationService notificationService;
 
-    public ChatController(ChatService chatService, SimpMessagingTemplate messagingTemplate) {
+    public ChatController(ChatService chatService,
+                         SimpMessagingTemplate messagingTemplate,
+                         NotificationService notificationService) {
         this.chatService = chatService;
         this.messagingTemplate = messagingTemplate;
+        this.notificationService = notificationService;
     }
 
     // ============= REST API ENDPOINTS =============
@@ -155,10 +159,14 @@ public class ChatController {
                 response
         );
         
-        // Gửi notification riêng cho receiver (optional)
+        // Gửi notification riêng cho receiver
         Chatroom chatroom = savedMessage.getChatroom();
-        Long receiverId = savedMessage.getSender().getUserid().equals(chatroom.getBuyer().getUserid()) 
-                ? chatroom.getSeller().getUserid() 
+        Long senderId = savedMessage.getSender().getUserid();
+        String senderName = savedMessage.getSender().getDisplayname() != null ?
+                savedMessage.getSender().getDisplayname() : savedMessage.getSender().getUsername();
+
+        Long receiverId = senderId.equals(chatroom.getBuyer().getUserid())
+                ? chatroom.getSeller().getUserid()
                 : chatroom.getBuyer().getUserid();
         
         messagingTemplate.convertAndSendToUser(
@@ -166,6 +174,9 @@ public class ChatController {
                 "/queue/messages",
                 response
         );
+
+        // GUI NOTIFICATION CHO RECEIVER
+        notificationService.notifyNewMessage(receiverId, senderId, senderName, chatroom.getChatid());
     }
 
     //Handle user join chatroom

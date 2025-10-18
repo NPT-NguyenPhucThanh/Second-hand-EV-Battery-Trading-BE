@@ -44,7 +44,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // === PUBLIC ENDPOINTS (GUEST) ===
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm
+
+                        // ===Guest API endpoints - không cần authentication===
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+
+                        // ===Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm===
                         .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
                         
@@ -59,6 +63,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/docuseal/**").permitAll()  // Public cho toàn bộ webhook
                         .requestMatchers("/api/docuseal/webhook/test").permitAll()  //cụ thể cho /test
                         
+                        // === VNPAY CALLBACK (MUST BE PUBLIC) ===
+                        .requestMatchers("/api/payment/vnpay-return").permitAll()
+                        .requestMatchers("/api/payment/vnpay-ipn").permitAll()
+                        .requestMatchers("/api/payment/mock-payment").permitAll()
+
                         // === MANAGER ENDPOINTS ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
                         

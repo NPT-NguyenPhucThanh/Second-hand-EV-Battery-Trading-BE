@@ -23,15 +23,18 @@ public class DisputeServiceImpl implements DisputeService {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     public DisputeServiceImpl(DisputeRepository disputeRepository,
                              UserRepository userRepository,
                              OrderRepository orderRepository,
-                             NotificationRepository notificationRepository) {
+                             NotificationRepository notificationRepository,
+                             NotificationService notificationService) {
         this.disputeRepository = disputeRepository;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
         this.notificationRepository = notificationRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -61,12 +64,17 @@ public class DisputeServiceImpl implements DisputeService {
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         
-        // Tạo notification cho buyer
-        createNotification(buyer, "Khiếu nại đã được gửi", 
-                "Khiếu nại của bạn cho đơn hàng #" + orderId + " đã được gửi. Manager sẽ xử lý trong thời gian sớm nhất.");
-        
-        // TODO: Tạo notification cho manager
-        
+        // SỬ DỤNG NOTIFICATIONSERVICE cho buyer
+        notificationService.createNotification(buyer.getUserid(),
+            "Khiếu nại đã được gửi",
+            "Khiếu nại của bạn cho đơn hàng #" + orderId + " đã được gửi. Manager sẽ xử lý trong thời gian sớm nhất.");
+
+        // GỬI NOTIFICATION CHO SELLER
+        if (order.getDetails() != null && !order.getDetails().isEmpty()) {
+            Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
+            notificationService.notifyNewDispute(sellerId, orderId, description);
+        }
+
         return dispute;
     }
 
@@ -84,14 +92,5 @@ public class DisputeServiceImpl implements DisputeService {
     public Dispute getDisputeById(Long disputeId) {
         return disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new RuntimeException("Dispute not found"));
-    }
-
-    private void createNotification(User user, String title, String description) {
-        Notification notification = new Notification();
-        notification.setTitle(title);
-        notification.setDescription(description);
-        notification.setCreated_time(new Date());
-        notification.setUsers(user);
-        notificationRepository.save(notification);
     }
 }
