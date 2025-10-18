@@ -45,10 +45,10 @@ public class SecurityConfig {
                         // === PUBLIC ENDPOINTS (GUEST) ===
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // ===Guest API endpoints - không cần authentication===
+                        // === Guest API endpoints - không cần authentication ===
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
 
-                        // ===Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm===
+                        // === Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm ===
                         .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
                         

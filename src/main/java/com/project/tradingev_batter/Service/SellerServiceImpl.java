@@ -445,7 +445,29 @@ public class SellerServiceImpl implements SellerService {
         long totalCars = products.stream().filter(p -> "Car EV".equals(p.getType())).count();
         long totalBatteries = products.stream().filter(p -> "Battery".equals(p.getType())).count();
         
-        // Đếm đơn hàng hoàn tất
+        // Tinh tong luot xem tat ca san pham
+        int totalViews = products.stream()
+                .mapToInt(Product::getViewCount)
+                .sum();
+
+        // Luot xem cho xe
+        int carViews = products.stream()
+                .filter(p -> "Car EV".equals(p.getType()))
+                .mapToInt(Product::getViewCount)
+                .sum();
+
+        // Luot xem cho pin
+        int batteryViews = products.stream()
+                .filter(p -> "Battery".equals(p.getType()))
+                .mapToInt(Product::getViewCount)
+                .sum();
+
+        // San pham co luot xem cao nhat
+        Product mostViewedProduct = products.stream()
+                .max(Comparator.comparingInt(Product::getViewCount))
+                .orElse(null);
+
+        // Dem don hang hoan tat
         List<Orders> carOrders = getSellerCarOrders(sellerId);
         List<Orders> batteryOrders = getSellerBatteryOrders(sellerId);
         
@@ -457,7 +479,7 @@ public class SellerServiceImpl implements SellerService {
                 .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
                 .count();
         
-        // Tính doanh thu
+        // Tinh doanh thu
         Map<String, Object> revenue = getRevenueDetails(sellerId);
         
         Map<String, Object> stats = new HashMap<>();
@@ -469,6 +491,23 @@ public class SellerServiceImpl implements SellerService {
         stats.put("totalRevenue", revenue.get("totalRevenue"));
         stats.put("netRevenue", revenue.get("netRevenue"));
         
+        // Views tracking
+        stats.put("totalViews", totalViews);
+        stats.put("carViews", carViews);
+        stats.put("batteryViews", batteryViews);
+        stats.put("averageViewsPerProduct", products.isEmpty() ? 0 : totalViews / products.size());
+
+        if (mostViewedProduct != null) {
+            stats.put("mostViewedProduct", Map.of(
+                "productId", mostViewedProduct.getProductid(),
+                "productName", mostViewedProduct.getProductname(),
+                "views", mostViewedProduct.getViewCount(),
+                "type", mostViewedProduct.getType()
+            ));
+        } else {
+            stats.put("mostViewedProduct", null);
+        }
+
         return stats;
     }
 

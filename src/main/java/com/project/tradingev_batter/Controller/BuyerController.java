@@ -7,6 +7,7 @@ import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.DisputeRequest;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -116,7 +117,7 @@ public class BuyerController {
 
     //Mua sản phẩm trực tiếp (Mua ngay)
     @PostMapping("/orders/buy-now")
-    public ResponseEntity<Map<String, Object>> buyNow(@RequestBody CheckoutRequest request) {
+    public ResponseEntity<Map<String, Object>> buyNow(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
         
         // Tạo đơn hàng trực tiếp từ 1 sản phẩm
@@ -148,7 +149,7 @@ public class BuyerController {
 
     //Mua từ giỏ hàng (Checkout)
     @PostMapping("/orders/checkout")
-    public ResponseEntity<Map<String, Object>> checkout(@RequestBody CheckoutRequest request) {
+    public ResponseEntity<Map<String, Object>> checkout(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
         
         Orders order = orderService.createOrderFromCart(
@@ -331,8 +332,8 @@ public class BuyerController {
     }
 
     //Đánh giá sản phẩm và người bán sau khi hoàn tất giao dịch
-    @PostMapping("/feedbacks")
-    public ResponseEntity<Map<String, Object>> createFeedback(@RequestBody FeedbackRequest request) {
+    @PostMapping("/feedback")
+    public ResponseEntity<Map<String, Object>> createFeedback(@Valid @RequestBody FeedbackRequest request) {
         User buyer = getCurrentUser();
         
         Feedback feedback = feedbackService.createFeedbackFromBuyer(
@@ -352,8 +353,8 @@ public class BuyerController {
     }
 
     //Gửi khiếu nại nếu có vấn đề xảy ra
-    @PostMapping("/disputes")
-    public ResponseEntity<Map<String, Object>> createDispute(@RequestBody DisputeRequest request) {
+    @PostMapping("/dispute")
+    public ResponseEntity<Map<String, Object>> createDispute(@Valid @RequestBody DisputeRequest request) {
         User buyer = getCurrentUser();
         
         Dispute dispute = disputeService.createDispute(

@@ -10,10 +10,6 @@ import com.project.tradingev_batter.enums.RefundStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.project.tradingev_batter.Entity.Orders;
-import com.project.tradingev_batter.Entity.Dispute;
-import com.project.tradingev_batter.Entity.Role;
-import com.project.tradingev_batter.Entity.User;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,6 +17,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 @Service
 @Slf4j
@@ -281,7 +278,7 @@ public class ManagerServiceImpl implements ManagerService {
         // Noti
         Notification noti = new Notification();
         noti.setTitle("Hoàn tiền cọc");
-        noti.setDescription("Số tiền " + depositAmount + " đã được hoàn trả.");
+        noti.setDescription("Số tiền " + depositAmount + " đã được hoàn tr��.");
         noti.setUsers(order.getUsers());
         notificationRepository.save(noti);
     }
@@ -457,26 +454,187 @@ public class ManagerServiceImpl implements ManagerService {
     @Override
     @Transactional
     public Map<String, Object> getRevenueReport() {
-        double totalSales = orderRepository.getTotalSales();
-        double commission = totalSales * 0.05; //hoa hồng 5%
-        Map<String,Object> rp = new HashMap<>();
-        rp.put("totalSales", totalSales);
-        rp.put("commission", commission);
-        return rp;
+        // Lay tat ca don hang va filter theo status
+        List<Orders> completedOrders = orderRepository.findAll().stream()
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
+                .toList();
+
+        // Tong doanh thu
+        double totalRevenue = completedOrders.stream()
+                .mapToDouble(Orders::getTotalamount)
+                .sum();
+
+        // Doanh thu tu xe
+        double carRevenue = completedOrders.stream()
+                .filter(o -> o.getDetails().stream()
+                        .anyMatch(d -> "Car EV".equals(d.getProducts().getType())))
+                .mapToDouble(Orders::getTotalamount)
+                .sum();
+
+        // Doanh thu tu pin
+        double batteryRevenue = completedOrders.stream()
+                .filter(o -> o.getDetails().stream()
+                        .anyMatch(d -> "Battery".equals(d.getProducts().getType())))
+                .mapToDouble(Orders::getTotalamount)
+                .sum();
+
+        // Hoa hong 5% tren tong doanh thu
+        double totalCommission = totalRevenue * 0.05;
+
+        // Doanh thu tu goi dich vu (Package Purchase)
+        List<Orders> packageOrders = orderRepository.findAll().stream()
+                .filter(o -> o.getPackageId() != null && OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
+                .toList();
+
+        double packageRevenue = packageOrders.stream()
+                .mapToDouble(Orders::getTotalamount)
+                .sum();
+
+        // Tong doanh thu nen tang = Commission + Package Revenue
+        double platformRevenue = totalCommission + packageRevenue;
+
+        Map<String, Object> report = new HashMap<>();
+        report.put("totalRevenue", totalRevenue);
+        report.put("carRevenue", carRevenue);
+        report.put("batteryRevenue", batteryRevenue);
+        report.put("totalCommission", totalCommission);
+        report.put("commissionRate", "5%");
+        report.put("packageRevenue", packageRevenue);
+        report.put("platformRevenue", platformRevenue);
+        report.put("totalCompletedOrders", completedOrders.size());
+        report.put("totalPackagesSold", packageOrders.size());
+
+        return report;
     }
 
     @Override
     @Transactional
     public Map<String, Object> getSystemReport() {
-        Map<String,Object> rp = new HashMap<>();
-        rp.put("totalProduct", productRepository.count());
-        rp.put("totalOrder", orderRepository.count());
-        rp.put("totalUser", userRepository.count());
-        rp.put("revenue", getRevenueReport().get("totalSales"));
+        // Thong ke tong quat
+        long totalUsers = userRepository.count();
+        long totalProducts = productRepository.count();
+        long totalOrders = orderRepository.count();
 
-        // Xu hướng: Sử dụng query group by createdat
-        // Ví dụ: List<Object[]> trends = orderRepository.getOrdersByMonth();
-        // thêm bên orderRepository rồi mà chưa làm ở đây
-        return rp;
+        // Thong ke nguoi dung theo role
+        long totalBuyers = userRepository.findAll().stream()
+                .filter(u -> u.getRoles().stream()
+                        .anyMatch(r -> "BUYER".equals(r.getRolename())))
+                .count();
+
+        long totalSellers = userRepository.findAll().stream()
+                .filter(u -> u.getRoles().stream()
+                        .anyMatch(r -> "SELLER".equals(r.getRolename())))
+                .count();
+
+        // Thong ke san pham
+        long carsOnSale = productRepository.findAll().stream()
+                .filter(p -> "Car EV".equals(p.getType()) && ProductStatus.DANG_BAN.equals(p.getStatus()))
+                .count();
+
+        long batteriesOnSale = productRepository.findAll().stream()
+                .filter(p -> "Battery".equals(p.getType()) && ProductStatus.DANG_BAN.equals(p.getStatus()))
+                .count();
+
+        long pendingApprovalProducts = productRepository.findAll().stream()
+                .filter(p -> ProductStatus.CHO_DUYET.equals(p.getStatus()))
+                .count();
+
+        long pendingInspectionProducts = productRepository.findAll().stream()
+                .filter(p -> ProductStatus.CHO_KIEM_DUYET.equals(p.getStatus()))
+                .count();
+
+        long productsInWarehouse = productRepository.findAll().stream()
+                .filter(Product::getInWarehouse)
+                .count();
+
+        // Thong ke don hang
+        long pendingOrders = orderRepository.findAll().stream()
+                .filter(o -> OrderStatus.CHO_DUYET.equals(o.getStatus()))
+                .count();
+
+        long completedOrders = orderRepository.findAll().stream()
+                .filter(o -> OrderStatus.DA_HOAN_TAT.equals(o.getStatus()))
+                .count();
+
+        long disputeOrders = orderRepository.findAll().stream()
+                .filter(o -> OrderStatus.TRANH_CHAP.equals(o.getStatus()))
+                .count();
+
+        // Thong ke tranh chap
+        long totalDisputes = disputeRepository.count();
+        long openDisputes = disputeRepository.findAll().stream()
+                .filter(d -> DisputeStatus.OPEN.equals(d.getStatus()) ||
+                            DisputeStatus.IN_PROGRESS.equals(d.getStatus()))
+                .count();
+
+        // San pham xem nhieu nhat - Xu huong thi truong
+        List<Product> allProducts = productRepository.findAll();
+        Product mostViewedProduct = allProducts.stream()
+                .max(Comparator.comparingInt(Product::getViewCount))
+                .orElse(null);
+
+        // Loai san pham pho bien nhat
+        long totalCarViews = allProducts.stream()
+                .filter(p -> "Car EV".equals(p.getType()))
+                .mapToInt(Product::getViewCount)
+                .sum();
+
+        long totalBatteryViews = allProducts.stream()
+                .filter(p -> "Battery".equals(p.getType()))
+                .mapToInt(Product::getViewCount)
+                .sum();
+
+        String trendingCategory = totalCarViews > totalBatteryViews ? "Car EV" : "Battery";
+
+        // Doanh thu
+        Map<String, Object> revenueReport = getRevenueReport();
+
+        Map<String, Object> report = new HashMap<>();
+
+        // Thong tin nguoi dung
+        report.put("totalUsers", totalUsers);
+        report.put("totalBuyers", totalBuyers);
+        report.put("totalSellers", totalSellers);
+
+        // Thong tin san pham
+        report.put("totalProducts", totalProducts);
+        report.put("carsOnSale", carsOnSale);
+        report.put("batteriesOnSale", batteriesOnSale);
+        report.put("pendingApprovalProducts", pendingApprovalProducts);
+        report.put("pendingInspectionProducts", pendingInspectionProducts);
+        report.put("productsInWarehouse", productsInWarehouse);
+
+        // Thong tin don hang
+        report.put("totalOrders", totalOrders);
+        report.put("pendingOrders", pendingOrders);
+        report.put("completedOrders", completedOrders);
+        report.put("disputeOrders", disputeOrders);
+
+        // Thong tin tranh chap
+        report.put("totalDisputes", totalDisputes);
+        report.put("openDisputes", openDisputes);
+
+        // Xu huong thi truong
+        if (mostViewedProduct != null) {
+            report.put("mostViewedProduct", Map.of(
+                "productId", mostViewedProduct.getProductid(),
+                "productName", mostViewedProduct.getProductname(),
+                "views", mostViewedProduct.getViewCount(),
+                "type", mostViewedProduct.getType()
+            ));
+        } else {
+            report.put("mostViewedProduct", null);
+        }
+
+        report.put("trendingCategory", trendingCategory);
+        report.put("totalCarViews", totalCarViews);
+        report.put("totalBatteryViews", totalBatteryViews);
+
+        // Doanh thu
+        report.put("platformRevenue", revenueReport.get("platformRevenue"));
+        report.put("totalRevenue", revenueReport.get("totalRevenue"));
+        report.put("totalCommission", revenueReport.get("totalCommission"));
+
+        return report;
     }
 }

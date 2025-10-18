@@ -5,6 +5,7 @@ import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.PackagePurchaseRequest;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -38,8 +39,8 @@ public class SellerController {
     //Seller cần gọi /api/payment/create-payment-url với transactionType=PACKAGE_PURCHASE để thanh toán
     @PostMapping("/packages/purchase")
     public ResponseEntity<Map<String, Object>> purchasePackage(
-            @RequestBody PackagePurchaseRequest request) {
-        
+            @Valid @RequestBody PackagePurchaseRequest request) {
+
         User seller = getCurrentUser();
         
         // Tạo order mua gói (chưa active)

@@ -5,6 +5,7 @@ import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.ManagerService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.project.tradingev_batter.dto.ApprovalRequest;
@@ -35,13 +36,13 @@ public class ManagerController {
     }
 
     @PostMapping("/products/{productId}/approve-preliminary")
-    public ResponseEntity<String> approvePreliminary(@PathVariable Long productId, @RequestBody ApprovalRequest request) {
+    public ResponseEntity<String> approvePreliminary(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
         managerService.approvePreliminaryProduct(productId, request.getNote(), request.isApproved());
         return ResponseEntity.ok("Processed");
     }
 
     @PostMapping("/products/{productId}/input-inspection")
-    public ResponseEntity<String> inputInspection(@PathVariable Long productId, @RequestBody ApprovalRequest request) {
+    public ResponseEntity<String> inputInspection(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
         managerService.inputInspectionResult(productId, request.isApproved(), request.getNote());
         return ResponseEntity.ok("Processed");
     }
