@@ -24,7 +24,6 @@ public class SellerServiceImpl implements SellerService {
     private final ProductImgRepository productImgRepository;
     private final OrderRepository orderRepository;
     private final ImageUploadService imageUploadService;
-    private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
     public SellerServiceImpl(UserRepository userRepository,
@@ -36,7 +35,6 @@ public class SellerServiceImpl implements SellerService {
                             ProductImgRepository productImgRepository,
                             OrderRepository orderRepository,
                             ImageUploadService imageUploadService,
-                            NotificationRepository notificationRepository,
                             NotificationService notificationService) {
         this.userRepository = userRepository;
         this.packageServiceRepository = packageServiceRepository;
@@ -47,7 +45,6 @@ public class SellerServiceImpl implements SellerService {
         this.productImgRepository = productImgRepository;
         this.orderRepository = orderRepository;
         this.imageUploadService = imageUploadService;
-        this.notificationRepository = notificationRepository;
         this.notificationService = notificationService;
     }
 

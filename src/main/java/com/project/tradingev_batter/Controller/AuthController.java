@@ -2,6 +2,7 @@ package com.project.tradingev_batter.Controller;
 
 import com.project.tradingev_batter.Entity.Role;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Repository.RoleRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
 import com.project.tradingev_batter.dto.LoginRequest;
 import com.project.tradingev_batter.dto.RegisterRequest;
@@ -11,9 +12,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,14 +32,18 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserDetailsService userDetailsService;
+    private final RoleRepository roleRepository;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwtService, UserRepository userRepository, PasswordEncoder passwordEncoder, UserDetailsService userDetailsService) {
+    public AuthController(AuthenticationManager authenticationManager,
+                         JwtService jwtService,
+                         UserRepository userRepository,
+                         PasswordEncoder passwordEncoder,
+                         RoleRepository roleRepository) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userDetailsService = userDetailsService;
+        this.roleRepository = roleRepository;
     }
 
     @PostMapping("/register")
@@ -52,25 +54,40 @@ public class AuthController {
             response.put("message", "Username exists");
             return ResponseEntity.badRequest().body(response);
         }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
         user.setCreated_at(new Date());
         user.setIsactive(true);
+
+        // GÁN ROLE MẶC ĐỊNH: BUYER
+        Role buyerRole = roleRepository.findByRolename("BUYER");
+        if (buyerRole == null) {
+            // Nếu chưa có role BUYER trong DB, tạo mới
+            buyerRole = new Role();
+            buyerRole.setRolename("BUYER");
+            buyerRole.setJoindate(new Date());
+            buyerRole = roleRepository.save(buyerRole);
+        }
+        user.setRoles(List.of(buyerRole));
+
         userRepository.save(user);
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Registered");
         response.put("username", user.getUsername());
         response.put("email", user.getEmail());
+        response.put("roles", List.of("BUYER"));
         response.put("created_at", user.getCreated_at());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
         // Fix LazyInitializationException: Sử dụng findByUsernameWithRoles để eager fetch roles
