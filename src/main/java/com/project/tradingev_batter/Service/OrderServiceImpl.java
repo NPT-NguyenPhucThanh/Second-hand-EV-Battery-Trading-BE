@@ -337,9 +337,8 @@ public class OrderServiceImpl implements OrderService {
     
     @SuppressWarnings("unused")
     private double calculateShippingFee(String shippingAddress) {
-        // Logic tính phí ship đơn giản (có thể tích hợp API giao hàng sau)
-        // Giả sử phí cố định hoặc tính theo khoảng cách
-        return 50000.0; // 50k VNĐ
+        // Logic tính phí ship 30k (tích hợp API giao hàng sau if rảnh)
+        return 30000.0; // 30k VNĐ
     }
 
     private void createNotification(User user, String title, String description) {

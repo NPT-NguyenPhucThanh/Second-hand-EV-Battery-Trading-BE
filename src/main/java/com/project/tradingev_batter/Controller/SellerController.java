@@ -25,13 +25,16 @@ public class SellerController {
     private final SellerService sellerService;
     private final ProductService productService;
     private final FeedbackService feedbackService;
+    private final ContractService contractService;
 
     public SellerController(SellerService sellerService, 
                            ProductService productService,
-                           FeedbackService feedbackService) {
+                           FeedbackService feedbackService,
+                           ContractService contractService) {
         this.sellerService = sellerService;
         this.productService = productService;
         this.feedbackService = feedbackService;
+        this.contractService = contractService;
     }
 
     //Mua các gói dịch vụ đăng bán (Cơ bản, Chuyên nghiệp, VIP)
@@ -76,22 +79,95 @@ public class SellerController {
     @GetMapping("/packages/current")
     public ResponseEntity<Map<String, Object>> getCurrentPackage() {
         User seller = getCurrentUser();
-        UserPackage currentPackage = sellerService.getCurrentPackage(seller.getUserid());
-        
+
+        // Lấy gói XE
+        UserPackage carPackage = sellerService.getCurrentPackageByType(seller.getUserid(), "CAR");
+        // Lấy gói PIN
+        UserPackage batteryPackage = sellerService.getCurrentPackageByType(seller.getUserid(), "BATTERY");
+
         Map<String, Object> response = new HashMap<>();
-        if (currentPackage != null) {
+        response.put("status", "success");
+
+        // Thông tin gói XE
+        if (carPackage != null) {
+            response.put("carPackage", Map.of(
+                    "packageName", carPackage.getPackageService().getName(),
+                    "packageType", "CAR",
+                    "purchaseDate", carPackage.getPurchaseDate(),
+                    "expiryDate", carPackage.getExpiryDate(),
+                    "remainingCars", carPackage.getRemainingCars(),
+                    "isExpired", sellerService.isPackageExpired(carPackage)
+            ));
+        } else {
+            response.put("carPackage", null);
+            response.put("carPackageMessage", "Bạn chưa có gói đăng xe. Vui lòng mua gói để đăng bán xe.");
+        }
+
+        // Thông tin gói PIN
+        if (batteryPackage != null) {
+            response.put("batteryPackage", Map.of(
+                    "packageName", batteryPackage.getPackageService().getName(),
+                    "packageType", "BATTERY",
+                    "purchaseDate", batteryPackage.getPurchaseDate(),
+                    "expiryDate", batteryPackage.getExpiryDate(),
+                    "remainingBatteries", batteryPackage.getRemainingBatteries(),
+                    "isExpired", sellerService.isPackageExpired(batteryPackage)
+            ));
+        } else {
+            response.put("batteryPackage", null);
+            response.put("batteryPackageMessage", "Bạn chưa có gói đăng pin. Vui lòng mua gói để đăng bán pin.");
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Endpoint riêng để lấy thông tin gói XE
+    @GetMapping("/packages/car")
+    public ResponseEntity<Map<String, Object>> getCarPackage() {
+        User seller = getCurrentUser();
+        UserPackage carPackage = sellerService.getCurrentPackageByType(seller.getUserid(), "CAR");
+
+        Map<String, Object> response = new HashMap<>();
+        if (carPackage != null) {
             response.put("status", "success");
             response.put("package", Map.of(
-                    "packageName", currentPackage.getPackageService().getName(),
-                    "purchaseDate", currentPackage.getPurchaseDate(),
-                    "expiryDate", currentPackage.getExpiryDate(),
-                    "remainingCars", currentPackage.getRemainingCars(),
-                    "remainingBatteries", currentPackage.getRemainingBatteries(),
-                    "isExpired", sellerService.isPackageExpired(currentPackage)
+                    "packageName", carPackage.getPackageService().getName(),
+                    "packageType", "CAR",
+                    "purchaseDate", carPackage.getPurchaseDate(),
+                    "expiryDate", carPackage.getExpiryDate(),
+                    "remainingCars", carPackage.getRemainingCars(),
+                    "maxCars", carPackage.getPackageService().getMaxCars(),
+                    "isExpired", sellerService.isPackageExpired(carPackage)
             ));
         } else {
             response.put("status", "error");
-            response.put("message", "Bạn chưa có gói nào. Vui lòng mua gói để đăng bán sản phẩm.");
+            response.put("message", "Bạn chưa có gói đăng xe. Vui lòng mua gói để đăng bán xe.");
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Endpoint riêng để lấy thông tin gói PIN
+    @GetMapping("/packages/battery")
+    public ResponseEntity<Map<String, Object>> getBatteryPackage() {
+        User seller = getCurrentUser();
+        UserPackage batteryPackage = sellerService.getCurrentPackageByType(seller.getUserid(), "BATTERY");
+
+        Map<String, Object> response = new HashMap<>();
+        if (batteryPackage != null) {
+            response.put("status", "success");
+            response.put("package", Map.of(
+                    "packageName", batteryPackage.getPackageService().getName(),
+                    "packageType", "BATTERY",
+                    "purchaseDate", batteryPackage.getPurchaseDate(),
+                    "expiryDate", batteryPackage.getExpiryDate(),
+                    "remainingBatteries", batteryPackage.getRemainingBatteries(),
+                    "maxBatteries", batteryPackage.getPackageService().getMaxBatteries(),
+                    "isExpired", sellerService.isPackageExpired(batteryPackage)
+            ));
+        } else {
+            response.put("status", "error");
+            response.put("message", "Bạn chưa có gói đăng pin. Vui lòng mua gói để đăng bán pin.");
         }
         
         return ResponseEntity.ok(response);
@@ -312,6 +388,63 @@ public class SellerController {
         response.put("totalProducts", products.size());
         response.put("products", products);
         
+        return ResponseEntity.ok(response);
+    }
+
+    // =============== CONTRACT MANAGEMENT (SPRINT 2.2) ================================================================
+
+    // SELLER XEM DANH SÁCH HỢP ĐỒNG CHỜ KÝ
+    // Sau khi xe đạt kiểm định, manager tạo contract -> seller cần ký
+    @GetMapping("/contracts/pending")
+    public ResponseEntity<Map<String, Object>> getPendingContracts() {
+        User seller = getCurrentUser();
+        List<Contracts> pendingContracts = contractService.getPendingContracts(seller.getUserid());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("pendingContracts", pendingContracts);
+        response.put("totalPending", pendingContracts.size());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // SELLER KÝ HỢP ĐỒNG
+    // Seller click "Ký hợp đồng" -> redirect sang DocuSeal để ký
+    @PostMapping("/contracts/{contractId}/sign")
+    public ResponseEntity<Map<String, Object>> signContract(@PathVariable Long contractId) {
+        User seller = getCurrentUser();
+
+        try {
+            Contracts contract = contractService.signContract(contractId, seller.getUserid());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Vui lòng ký hợp đồng trên DocuSeal");
+            response.put("contract", contract);
+            response.put("docusealSubmissionId", contract.getDocusealSubmissionId());
+            response.put("note", "Frontend cần gọi DocuSeal API để lấy signing URL");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    // SELLER XEM TẤT CẢ HỢP ĐỒNG
+    @GetMapping("/contracts")
+    public ResponseEntity<Map<String, Object>> getAllContracts() {
+        User seller = getCurrentUser();
+        List<Contracts> contracts = contractService.getSellerContracts(seller.getUserid());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("contracts", contracts);
+        response.put("totalContracts", contracts.size());
+
         return ResponseEntity.ok(response);
     }
 

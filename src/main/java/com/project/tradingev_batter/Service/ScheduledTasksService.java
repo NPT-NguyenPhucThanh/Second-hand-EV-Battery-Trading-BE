@@ -68,16 +68,37 @@ public class ScheduledTasksService {
             
             for (Transaction transaction : readyToRelease) {
                 try {
-                    // Giai phong tien
-                    transaction.setIsEscrowed(false);
-                    transaction.setStatus(TransactionStatus.SUCCESS);
-                    transactionRepository.save(transaction);
-                    
                     Orders order = transaction.getOrders();
                     double totalAmount = transaction.getAmount();
+
+                    // Tính hoa hồng 5%
                     double commission = totalAmount * 0.05;
                     double sellerReceives = totalAmount - commission;
                     
+                    // Tạo transaction record cho commission
+                    Transaction commissionTransaction = new Transaction();
+                    commissionTransaction.setOrders(order);
+                    commissionTransaction.setAmount(commission);
+                    commissionTransaction.setTransactionType(com.project.tradingev_batter.enums.TransactionType.COMMISSION);
+                    commissionTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
+                    commissionTransaction.setMethod("PLATFORM_FEE");
+                    commissionTransaction.setDescription("Hoa hồng 5% từ đơn hàng #" + order.getOrderid());
+                    commissionTransaction.setCreatedat(new Date());
+                    commissionTransaction.setPaymentDate(new Date());
+                    transactionRepository.save(commissionTransaction);
+
+                    // Giải phóng tiền
+                    transaction.setIsEscrowed(false);
+                    transaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
+                    transactionRepository.save(transaction);
+
+                    // Cập nhật order status thành DA_HOAN_TAT nếu chưa
+                    if (!OrderStatus.DA_HOAN_TAT.equals(order.getStatus())) {
+                        order.setStatus(OrderStatus.DA_HOAN_TAT);
+                        order.setUpdatedat(new Date());
+                        orderRepository.save(order);
+                    }
+
                     log.info("Escrow released for transaction {}: Order #{}, Amount: {}, Commission: {}, Seller receives: {}",
                             transaction.getTransactionCode(),
                             order.getOrderid(),
@@ -150,8 +171,8 @@ public class ScheduledTasksService {
     }
 
     // AUTO-CONFIRM BATTERY ORDERS sau 3 ngay
-    // Chay moi ngay luc 3 gio sang
-    @Scheduled(cron = "0 0 3 * * ?")
+    // Chay moi ngay luc 1 gio sang
+    @Scheduled(cron = "0 0 1 * * ?") // 1:00 AM every day
     @Transactional
     public void autoConfirmBatteryOrders() {
         try {
@@ -163,7 +184,7 @@ public class ScheduledTasksService {
                     .filter(order -> {
                         boolean isBatteryOrder = order.getDetails() != null &&
                                 order.getDetails().stream()
-                                .anyMatch(detail -> "BATTERY".equals(detail.getProducts().getType()));
+                                .anyMatch(detail -> "Battery".equalsIgnoreCase(detail.getProducts().getType()));
 
                         boolean isDelivered = OrderStatus.DA_GIAO.equals(order.getStatus());
 
@@ -207,8 +228,8 @@ public class ScheduledTasksService {
     }
 
     // AUTO-HIDE PRODUCTS khi het han goi
-    // Chay moi ngay luc 4 gio sang
-    @Scheduled(cron = "0 0 4 * * ?")
+    // Chay moi ngay luc 1g05 sang (sau khi auto-confirm battery orders)
+    @Scheduled(cron = "0 5 1 * * ?") // 1:05 AM every day
     @Transactional
     public void autoHideExpiredProducts() {
         try {

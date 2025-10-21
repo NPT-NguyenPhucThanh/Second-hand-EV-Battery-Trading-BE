@@ -90,7 +90,7 @@ public class AuthController {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
-        // Fix LazyInitializationException: Sử dụng findByUsernameWithRoles để eager fetch roles
+        //LazyInitializationException: Sử dụng findByUsernameWithRoles để eager fetch roles
         User user = userRepository.findByUsernameWithRoles(request.getUsername());
         CustomUserDetails customUserDetails = new CustomUserDetails(user);
         String jwt = jwtService.generateToken(customUserDetails);

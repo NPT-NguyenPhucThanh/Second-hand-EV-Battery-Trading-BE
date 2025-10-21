@@ -13,6 +13,7 @@ public interface SellerService {
     Map<String, Object> createPackagePurchaseOrder(Long sellerId, Long packageId); //Tạo order mua gói
     UserPackage activatePackageAfterPayment(Long sellerId, Long packageId); //Kích hoạt gói sau thanh toán
     UserPackage getCurrentPackage(Long sellerId);
+    UserPackage getCurrentPackageByType(Long sellerId, String packageType); // Lấy gói theo loại
     boolean isPackageExpired(UserPackage userPackage);
     UserPackage renewPackage(Long sellerId, Long packageId);
     

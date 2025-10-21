@@ -7,4 +7,5 @@ import java.util.List;
 public interface PackageServiceService {
     List<PackageService> getAllPackages();
     PackageService getPackageById(Long id);
+    List<PackageService> getPackagesByType(String packageType); // Lấy gói theo loại (CAR hoặc BATTERY)
 }

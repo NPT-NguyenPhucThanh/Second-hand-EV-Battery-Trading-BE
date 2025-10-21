@@ -402,15 +402,49 @@ public class BuyerController {
 
     //YÊU CẦU NÂNG CẤP LÊN SELLER
     //Buyer gửi yêu cầu với CCCD và giấy tờ xe
+    //VALIDATION: Max 5MB, chỉ jpg/jpeg/png/pdf, bắt buộc upload cả 3 files
     @PostMapping("/request-seller-upgrade")
     public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
             @RequestParam("cccdFront") MultipartFile cccdFront,
             @RequestParam("cccdBack") MultipartFile cccdBack,
-            @RequestParam(value = "vehicleRegistration", required = false) MultipartFile vehicleRegistration) {
+            @RequestParam("vehicleRegistration") MultipartFile vehicleRegistration) {
 
         User buyer = getCurrentUser();
 
         try {
+            // VALIDATION: Kiểm tra file size và type
+            List<MultipartFile> files = List.of(cccdFront, cccdBack, vehicleRegistration);
+            for (MultipartFile file : files) {
+                // Check file không null và không empty
+                if (file == null || file.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "Vui lòng upload đầy đủ CCCD (mặt trước + sau) và giấy tờ xe"
+                    ));
+                }
+
+                // Check file size: max 5MB
+                if (file.getSize() > 5 * 1024 * 1024) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "File " + file.getOriginalFilename() + " vượt quá 5MB"
+                    ));
+                }
+
+                // Check file type: jpg, jpeg, png, pdf
+                String contentType = file.getContentType();
+                if (contentType == null ||
+                    !(contentType.equals("image/jpeg") ||
+                      contentType.equals("image/jpg") ||
+                      contentType.equals("image/png") ||
+                      contentType.equals("application/pdf"))) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "File " + file.getOriginalFilename() + " phải là jpg, jpeg, png hoặc pdf"
+                    ));
+                }
+            }
+
             // Kiểm tra đã có role Seller chưa
             boolean isSeller = buyer.getRoles().stream()
                     .anyMatch(role -> "SELLER".equals(role.getRolename()));
@@ -438,11 +472,9 @@ public class BuyerController {
             String cccdBackUrl = imageUploadService.uploadImage(cccdBack, "seller_upgrade/cccd_back_" + buyer.getUserid());
             buyer.setCccdBackUrl(cccdBackUrl);
 
-            // Upload vehicle registration nếu có
-            if (vehicleRegistration != null && !vehicleRegistration.isEmpty()) {
-                String vehicleRegUrl = imageUploadService.uploadImage(vehicleRegistration, "seller_upgrade/vehicle_" + buyer.getUserid());
-                buyer.setVehicleRegistrationUrl(vehicleRegUrl);
-            }
+            // Upload vehicle registration
+            String vehicleRegUrl = imageUploadService.uploadImage(vehicleRegistration, "seller_upgrade/vehicle_" + buyer.getUserid());
+            buyer.setVehicleRegistrationUrl(vehicleRegUrl);
 
             // Cập nhật status
             buyer.setSellerUpgradeStatus("PENDING");
@@ -456,7 +488,7 @@ public class BuyerController {
             response.put("uploadedDocuments", Map.of(
                 "cccdFront", cccdFrontUrl,
                 "cccdBack", cccdBackUrl,
-                "vehicleRegistration", buyer.getVehicleRegistrationUrl() != null ? buyer.getVehicleRegistrationUrl() : "N/A"
+                "vehicleRegistration", vehicleRegUrl
             ));
 
             return ResponseEntity.ok(response);

@@ -25,4 +25,9 @@ public class PackageServiceServiceImpl implements PackageServiceService {
         return packageServiceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
     }
+
+    @Override
+    public List<PackageService> getPackagesByType(String packageType) {
+        return packageServiceRepository.findByPackageType(packageType);
+    }
 }

@@ -1,8 +1,10 @@
 package com.project.tradingev_batter.Controller;
 
 import com.project.tradingev_batter.Entity.Feedback;
+import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Service.PackageServiceService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
 import com.project.tradingev_batter.enums.ProductStatus;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
  * Tìm kiếm và lọc sản phẩm
  * Xem chi tiết sản phẩm
  * Xem thông tin người bán
+ * Xem danh sách gói dịch vụ
  * Yêu cầu đăng nhập khi mua hoặc chat
  */
 @RestController
@@ -28,10 +31,12 @@ public class GuestController {
 
     private final ProductService productService;
     private final UserService userService;
+    private final PackageServiceService packageServiceService;
 
-    public GuestController(ProductService productService, UserService userService) {
+    public GuestController(ProductService productService, UserService userService, PackageServiceService packageServiceService) {
         this.productService = productService;
         this.userService = userService;
+        this.packageServiceService = packageServiceService;
     }
 
     //Xem danh sách tất cả sản phẩm (xe và pin đang bán)
@@ -289,6 +294,32 @@ public class GuestController {
                 ("buy".equals(action) ? "mua sản phẩm" : "chat với người bán"));
         response.put("loginUrl", "/api/auth/login");
         response.put("registerUrl", "/api/auth/register");
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Xem danh sách gói dịch vụ theo loại (dành cho guest và seller)
+    @GetMapping("/package-services")
+    public ResponseEntity<Map<String, Object>> getAllPackageServices(
+            @RequestParam(required = false) String packageType) {
+
+        List<PackageService> packages;
+
+        // Lọc theo packageType nếu có ("CAR" hoặc "BATTERY")
+        if (packageType != null && !packageType.isEmpty()) {
+            packages = packageServiceService.getPackagesByType(packageType);
+        } else {
+            packages = packageServiceService.getAllPackages();
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("packages", packages);
+        response.put("totalPackages", packages.size());
+
+        if (packageType != null) {
+            response.put("packageType", packageType);
+        }
 
         return ResponseEntity.ok(response);
     }

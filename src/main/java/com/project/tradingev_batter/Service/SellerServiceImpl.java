@@ -59,14 +59,16 @@ public class SellerServiceImpl implements SellerService {
         PackageService packageService = packageServiceRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
         
-        // VALIDATE - Phai mua dung loai goi
-        // Nếu gói XE thì maxBatteries phải = 0
-        // Nếu gói PIN thì maxCars phải = 0
-        if ("CAR".equals(packageService.getPackageType()) && packageService.getMaxBatteries() > 0) {
-            throw new RuntimeException("Goi xe khong duoc co maxBatteries");
-        }
-        if ("BATTERY".equals(packageService.getPackageType()) && packageService.getMaxCars() > 0) {
-            throw new RuntimeException("Goi pin khong duoc co maxCars");
+        // VALIDATE - Kiểm tra gói hợp lệ
+        validatePackageType(packageService);
+
+        // VALIDATE - Kiểm tra xem seller đã có gói loại này chưa hết hạn chưa
+        String packageType = packageService.getPackageType();
+        UserPackage existingPackage = getCurrentPackageByType(sellerId, packageType);
+
+        if (existingPackage != null && !isPackageExpired(existingPackage)) {
+            throw new RuntimeException("Bạn đã có gói " + packageType + " đang hoạt động. " +
+                    "Vui lòng đợi gói hết hạn hoặc sử dụng chức năng gia hạn.");
         }
         
         // Tao order mua goi
@@ -108,6 +110,17 @@ public class SellerServiceImpl implements SellerService {
         PackageService packageService = packageServiceRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
         
+        // VALIDATE - Kiểm tra gói hợp lệ
+        validatePackageType(packageService);
+
+        // VALIDATE - Kiểm tra xem seller đã có gói loại này chưa hết hạn chưa
+        String packageType = packageService.getPackageType();
+        UserPackage existingPackage = getCurrentPackageByType(sellerId, packageType);
+
+        if (existingPackage != null && !isPackageExpired(existingPackage)) {
+            throw new RuntimeException("Bạn đã có gói " + packageType + " đang hoạt động. Không thể kích hoạt gói mới.");
+        }
+
         // Tao UserPackage moi
         UserPackage userPackage = new UserPackage();
         userPackage.setUser(seller);
@@ -120,36 +133,47 @@ public class SellerServiceImpl implements SellerService {
         calendar.add(Calendar.MONTH, packageService.getDurationMonths());
         userPackage.setExpiryDate(calendar.getTime());
         
-        // Set so luot dang
-        userPackage.setRemainingCars(packageService.getMaxCars());
-        userPackage.setRemainingBatteries(packageService.getMaxBatteries());
-        
+        // Set so luot dang theo loại gói
+        if ("CAR".equals(packageType)) {
+            userPackage.setRemainingCars(packageService.getMaxCars());
+            userPackage.setRemainingBatteries(0);
+        } else if ("BATTERY".equals(packageType)) {
+            userPackage.setRemainingCars(0);
+            userPackage.setRemainingBatteries(packageService.getMaxBatteries());
+        }
+
         userPackageRepository.save(userPackage);
-        
-        // BR-31: VALIDATE - Kiem tra lai loai goi
-        validatePackageType(packageService);
         
         // SU DUNG NOTIFICATIONSERVICE
         notificationService.createNotification(seller.getUserid(),
             "Kich hoat goi thanh cong",
-            "Goi " + packageService.getName() + " da duoc kich hoat. Han su dung den " + userPackage.getExpiryDate());
-
+            "Goi " + packageService.getName() + " (" + packageType + ") da duoc kich hoat. Han su dung den " + userPackage.getExpiryDate());
         return userPackage;
     }
 
-    //Lấy gói hiện tại của seller
+    //Lấy gói hiện tại của seller (bất kể loại gì, lấy gói mới nhất còn hiệu lực)
     @Override
     public UserPackage getCurrentPackage(Long sellerId) {
-        List<UserPackage> packages = userPackageRepository.findByUser_UseridOrderByExpiryDateDesc(sellerId);
-        
-        // Lấy gói chưa hết hạn
-        for (UserPackage pkg : packages) {
-            if (!isPackageExpired(pkg)) {
-                return pkg;
-            }
+        List<UserPackage> packages = userPackageRepository.findActivePackagesByUser(sellerId, new Date());
+
+        if (!packages.isEmpty()) {
+            return packages.get(0); // Lấy gói mới nhất
         }
         
-        return null; // Không có gói hợp lệ
+        return null;
+    }
+
+    //LẤY GÓI HIỆN TẠI THEO LOẠI (CAR hoặc BATTERY)
+    @Override
+    public UserPackage getCurrentPackageByType(Long sellerId, String packageType) {
+        List<UserPackage> packages = userPackageRepository.findActivePackageByUserAndType(
+                sellerId, packageType, new Date());
+
+        if (!packages.isEmpty()) {
+            return packages.get(0); // Lấy gói còn hiệu lực đầu tiên
+        }
+
+        return null;
     }
 
     @Override
@@ -167,29 +191,36 @@ public class SellerServiceImpl implements SellerService {
         PackageService packageService = packageServiceRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
         
-        UserPackage currentPackage = getCurrentPackage(sellerId);
-        
+        // VALIDATE - Kiểm tra gói hợp lệ
+        validatePackageType(packageService);
+
+        String packageType = packageService.getPackageType();
+        UserPackage currentPackage = getCurrentPackageByType(sellerId, packageType);
+
         if (currentPackage != null && !isPackageExpired(currentPackage)) {
-            // Gia han tu ngay het han hien tai
+            // Gia hạn từ ngày hết hạn hiện tại
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(currentPackage.getExpiryDate());
             calendar.add(Calendar.MONTH, packageService.getDurationMonths());
             currentPackage.setExpiryDate(calendar.getTime());
             
-            // Cong them luot dang
-            currentPackage.setRemainingCars(currentPackage.getRemainingCars() + packageService.getMaxCars());
-            currentPackage.setRemainingBatteries(currentPackage.getRemainingBatteries() + packageService.getMaxBatteries());
-            
+            // Cộng thêm lượt đăng theo loại gói
+            if ("CAR".equals(packageType)) {
+                currentPackage.setRemainingCars(currentPackage.getRemainingCars() + packageService.getMaxCars());
+            } else if ("BATTERY".equals(packageType)) {
+                currentPackage.setRemainingBatteries(currentPackage.getRemainingBatteries() + packageService.getMaxBatteries());
+            }
+
             userPackageRepository.save(currentPackage);
             
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.createNotification(seller.getUserid(),
                 "Gia han goi thanh cong",
-                "Goi cua ban da duoc gia han den " + currentPackage.getExpiryDate());
+                "Goi " + packageType + " cua ban da duoc gia han den " + currentPackage.getExpiryDate());
 
             return currentPackage;
         } else {
-            // Mua goi moi
+            // Gói đã hết hạn hoặc chưa có gói -> Mua gói mới
             return activatePackageAfterPayment(sellerId, packageId);
         }
     }
@@ -215,19 +246,6 @@ public class SellerServiceImpl implements SellerService {
                currentBatteryPackage.getRemainingBatteries() > 0;
     }
     
-    //LẤY GÓI HIỆN TẠI THEO LOẠI (CAR hoặc BATTERY)
-    private UserPackage getCurrentPackageByType(Long sellerId, String packageType) {
-        List<UserPackage> packages = userPackageRepository.findByUser_UseridOrderByExpiryDateDesc(sellerId);
-        
-        for (UserPackage pkg : packages) {
-            if (!isPackageExpired(pkg) && packageType.equals(pkg.getPackageService().getPackageType())) {
-                return pkg;
-            }
-        }
-        
-        return null;
-    }
-
     //Đăng xe (cần kiểm định và hợp đồng)
     @Override
     @Transactional
@@ -356,7 +374,7 @@ public class SellerServiceImpl implements SellerService {
         
         // Kiểm tra quyền sở hữu
         if (!product.getUsers().getUserid().equals(sellerId)) {
-            throw new RuntimeException("Bạn không có quyền chỉnh sửa sản phẩm này");
+            throw new RuntimeException("Bạn không có quyền chỉnh sửa s��n phẩm này");
         }
         
         // Kiểm tra loại sản phẩm

@@ -104,7 +104,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         }
         
         // Kiểm tra đơn hàng đã hoàn tất chưa
-        if (!"DA_HOAN_TAT".equals(order.getStatus())) {
+        if (!com.project.tradingev_batter.enums.OrderStatus.DA_HOAN_TAT.equals(order.getStatus())) {
             throw new RuntimeException("Chỉ có thể đánh giá sau khi đơn hàng hoàn tất");
         }
         
