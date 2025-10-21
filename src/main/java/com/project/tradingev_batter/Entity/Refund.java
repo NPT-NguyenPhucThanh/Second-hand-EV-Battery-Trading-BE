@@ -34,6 +34,16 @@ public class Refund {
     @Column(name = "createdat")
     private Date createdat;
 
+    @Column(name = "processed_at")
+    private Date processedAt; // Thời điểm xử lý refund
+
+    @Column(name = "refund_method")
+    private String refundMethod; // Phương thức hoàn tiền: "VNPay", "Bank Transfer", "Cash"
+
+    @ManyToOne
+    @JoinColumn(name = "processed_by")
+    private User processedBy; // Manager xử lý refund
+
     @ManyToOne
     @JoinColumn(name = "orderid")
     private Orders orders;

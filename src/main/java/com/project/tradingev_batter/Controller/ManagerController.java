@@ -4,9 +4,14 @@ import com.project.tradingev_batter.Entity.Notification;
 import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.Refund;
 import com.project.tradingev_batter.Service.ManagerService;
+import com.project.tradingev_batter.Service.RefundService;
+import com.project.tradingev_batter.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import com.project.tradingev_batter.dto.ApprovalRequest;
 import com.project.tradingev_batter.dto.LockRequest;
@@ -23,11 +28,14 @@ import java.util.Map;
 public class ManagerController {
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
+    private final RefundService refundService;
 
     public ManagerController(ManagerService managerService,
-                             PackageServiceRepository packageServiceRepository) {
+                             PackageServiceRepository packageServiceRepository,
+                             RefundService refundService) {
         this.managerService = managerService;
         this.packageServiceRepository = packageServiceRepository;
+        this.refundService = refundService;
     }
 
     @GetMapping("/notifications/{managerId}")
@@ -95,8 +103,7 @@ public class ManagerController {
                 "phone", user.getPhone() != null ? user.getPhone() : "N/A",
                 "requestDate", user.getSellerUpgradeRequestDate(),
                 "cccdFrontUrl", user.getCccdFrontUrl(),
-                "cccdBackUrl", user.getCccdBackUrl(),
-                "vehicleRegistrationUrl", user.getVehicleRegistrationUrl() != null ? user.getVehicleRegistrationUrl() : "N/A"
+                "cccdBackUrl", user.getCccdBackUrl()
         )).toList());
         
         return ResponseEntity.ok(response);
@@ -170,5 +177,187 @@ public class ManagerController {
     public ResponseEntity<String> updateWarehouseStatus(@PathVariable Long productId, @RequestParam String newStatus) {
         managerService.updateWarehouseStatus(productId, newStatus);
         return ResponseEntity.ok("Status updated to " + newStatus);
+    }
+
+    //Lấy tất cả refund requests
+    @GetMapping("/refunds")
+    public ResponseEntity<Map<String, Object>> getAllRefunds() {
+        List<Refund> refunds = refundService.getAllRefunds();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalRefunds", refunds.size());
+        response.put("refunds", refunds);
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Lấy refund requests đang chờ xử lý (PENDING)
+    @GetMapping("/refunds/pending")
+    public ResponseEntity<Map<String, Object>> getPendingRefunds() {
+        List<Refund> refunds = refundService.getRefundsByStatus(com.project.tradingev_batter.enums.RefundStatus.PENDING);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalPending", refunds.size());
+        response.put("refunds", refunds);
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Lấy chi tiết refund request
+    @GetMapping("/refunds/{refundId}")
+    public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
+        try {
+            Refund refund = refundService.getRefundById(refundId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("refund", refund);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    //Manager xử lý refund request
+    @PostMapping("/refunds/{refundId}/process")
+    public ResponseEntity<Map<String, Object>> processRefund(
+            @PathVariable Long refundId,
+            @RequestBody Map<String, Object> request) {
+
+        try {
+            // Lấy current manager
+            User manager = getCurrentUser();
+
+            boolean approve = (Boolean) request.get("approve");
+            String refundMethod = (String) request.getOrDefault("refundMethod", "VNPay");
+            String note = (String) request.getOrDefault("note", "");
+
+            // Validate refund method nếu approve
+            if (approve && refundMethod == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Vui lòng chọn phương thức hoàn tiền"
+                ));
+            }
+
+            Refund processedRefund = refundService.processRefund(
+                refundId,
+                manager.getUserid(),
+                refundMethod,
+                approve,
+                note
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", approve ? "Đã chấp nhận hoàn tiền" : "Đã từ chối yêu cầu hoàn tiền");
+            response.put("refund", processedRefund);
+
+            if (approve) {
+                response.put("refundAmount", processedRefund.getAmount());
+                response.put("refundMethod", processedRefund.getRefundMethod());
+                response.put("processedAt", processedRefund.getProcessedAt());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    //Lấy refunds của một order cụ thể
+    @GetMapping("/refunds/order/{orderId}")
+    public ResponseEntity<Map<String, Object>> getRefundsByOrder(@PathVariable Long orderId) {
+        try {
+            List<Refund> refunds = refundService.getRefundsByOrder(orderId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("orderId", orderId);
+            response.put("totalRefunds", refunds.size());
+            response.put("refunds", refunds);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    //Dashboard tổng quan cho Manager
+    //Hiển thị: pending tasks, recent activities, revenue, market trends
+    @GetMapping("/dashboard/overview")
+    public ResponseEntity<Map<String, Object>> getDashboardOverview() {
+        try {
+            Map<String, Object> systemReport = managerService.getSystemReport();
+            Map<String, Object> revenueReport = managerService.getRevenueReport();
+
+            Map<String, Object> dashboard = new HashMap<>();
+            dashboard.put("status", "success");
+
+            // Pending Tasks Summary
+            Map<String, Object> pendingTasks = new HashMap<>();
+            pendingTasks.put("pendingApprovalProducts", systemReport.get("pendingApprovalProducts"));
+            pendingTasks.put("pendingInspectionProducts", systemReport.get("pendingInspectionProducts"));
+            pendingTasks.put("pendingOrders", systemReport.get("pendingOrders"));
+            pendingTasks.put("openDisputes", systemReport.get("openDisputes"));
+            pendingTasks.put("pendingSellerUpgrades", managerService.getPendingSellerUpgradeRequests().size());
+            dashboard.put("pendingTasks", pendingTasks);
+
+            // Revenue Summary
+            Map<String, Object> revenueSummary = new HashMap<>();
+            revenueSummary.put("totalRevenue", revenueReport.get("totalRevenue"));
+            revenueSummary.put("platformRevenue", revenueReport.get("platformRevenue"));
+            revenueSummary.put("totalCommission", revenueReport.get("totalCommission"));
+            revenueSummary.put("packageRevenue", revenueReport.get("packageRevenue"));
+            dashboard.put("revenueSummary", revenueSummary);
+
+            // Market Trends
+            Map<String, Object> marketTrends = new HashMap<>();
+            marketTrends.put("trendingCategory", systemReport.get("trendingCategory"));
+            marketTrends.put("mostViewedProduct", systemReport.get("mostViewedProduct"));
+            marketTrends.put("totalCarViews", systemReport.get("totalCarViews"));
+            marketTrends.put("totalBatteryViews", systemReport.get("totalBatteryViews"));
+            dashboard.put("marketTrends", marketTrends);
+
+            // Quick Stats
+            Map<String, Object> quickStats = new HashMap<>();
+            quickStats.put("totalUsers", systemReport.get("totalUsers"));
+            quickStats.put("totalProducts", systemReport.get("totalProducts"));
+            quickStats.put("totalOrders", systemReport.get("totalOrders"));
+            quickStats.put("completedOrders", systemReport.get("completedOrders"));
+            dashboard.put("quickStats", quickStats);
+
+            return ResponseEntity.ok(dashboard);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải dashboard: " + e.getMessage()
+            ));
+        }
+    }
+
+    // ============= HELPER METHODS ====================================================================================
+
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {
+            throw new RuntimeException("User not authenticated");
+        }
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        return userDetails.getUser();
     }
 }

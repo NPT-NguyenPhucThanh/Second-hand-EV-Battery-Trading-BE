@@ -32,6 +32,7 @@ public class BuyerController {
     private final VNPayService vnPayService;
     private final UserService userService;
     private final ImageUploadService imageUploadService;
+    private final TransactionService transactionService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
@@ -41,7 +42,8 @@ public class BuyerController {
                           DocuSealService docuSealService,
                           VNPayService vnPayService,
                           UserService userService,
-                          ImageUploadService imageUploadService) {
+                          ImageUploadService imageUploadService,
+                          TransactionService transactionService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
@@ -51,6 +53,7 @@ public class BuyerController {
         this.vnPayService = vnPayService;
         this.userService = userService;
         this.imageUploadService = imageUploadService;
+        this.transactionService = transactionService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -183,11 +186,61 @@ public class BuyerController {
     public ResponseEntity<Map<String, Object>> makeDeposit(
             @PathVariable Long orderId,
             @RequestParam String transactionLocation,
+            @RequestParam String appointmentDate, // Format: "yyyy-MM-dd HH:mm:ss" hoặc timestamp
+            @RequestParam(required = false, defaultValue = "false") Boolean transferOwnership,
+            @RequestParam(required = false, defaultValue = "false") Boolean changePlate,
             HttpServletRequest request) {
         
         User buyer = getCurrentUser();
         
         try {
+            // ============= VALIDATION =============
+
+            // Validate transactionLocation
+            if (transactionLocation == null || transactionLocation.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Vui lòng cung cấp điểm giao dịch (transactionLocation)"
+                ));
+            }
+
+            // Validate appointmentDate
+            if (appointmentDate == null || appointmentDate.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Vui lòng cung cấp thời gian hẹn giao dịch (appointmentDate)"
+                ));
+            }
+
+            // Parse appointmentDate
+            Date parsedAppointmentDate;
+            try {
+                // Try parsing as timestamp first
+                long timestamp = Long.parseLong(appointmentDate);
+                parsedAppointmentDate = new Date(timestamp);
+            } catch (NumberFormatException e) {
+                // Try parsing as date string
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    parsedAppointmentDate = sdf.parse(appointmentDate);
+                } catch (Exception ex) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "Định dạng appointmentDate không hợp lệ. Vui lòng dùng 'yyyy-MM-dd HH:mm:ss' hoặc timestamp"
+                    ));
+                }
+            }
+
+            // Validate appointmentDate phải là thời điểm trong tương lai
+            if (parsedAppointmentDate.before(new Date())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Thời gian hẹn giao dịch phải là thời điểm trong tương lai"
+                ));
+            }
+
+            // ============= BUSINESS LOGIC =============
+
             // Kiểm tra order tồn tại và thuộc về buyer
             Orders order = orderService.getOrderById(orderId);
             if (order.getUsers().getUserid() != buyer.getUserid()) {
@@ -205,13 +258,22 @@ public class BuyerController {
                 ));
             }
             
-            // Lưu transaction location vào order (để dùng sau khi thanh toán xong)
-            order.setShippingaddress(transactionLocation);
-            
+            // Lưu thông tin giao dịch vào order
+            order.setTransactionLocation(transactionLocation);
+            order.setAppointmentDate(parsedAppointmentDate);
+            order.setTransferOwnership(transferOwnership);
+            order.setChangePlate(changePlate);
+            order.setUpdatedat(new Date());
+            orderService.updateOrder(order); // Cần thêm method này vào OrderService
+
             // REDIRECT SANG PAYMENT CONTROLLER để tạo VNPay URL
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Vui lòng gọi API Payment để thanh toán đặt cọc");
+            response.put("message", "Thông tin giao dịch đã được lưu. Vui lòng thanh toán đặt cọc");
+            response.put("transactionLocation", transactionLocation);
+            response.put("appointmentDate", parsedAppointmentDate);
+            response.put("transferOwnership", transferOwnership);
+            response.put("changePlate", changePlate);
             response.put("nextStep", Map.of(
                 "endpoint", "/api/payment/create-payment-url",
                 "method", "POST",
@@ -331,6 +393,40 @@ public class BuyerController {
         }
     }
 
+    //XEM CHI TIẾT TRANSACTION HISTORY CỦA MỘT ORDER
+    //Hiển thị tất cả transactions: DEPOSIT, FINAL_PAYMENT, REFUND, COMMISSION
+    //API này giúp buyer theo dõi chi tiết luồng tiền của đơn hàng
+    @GetMapping("/orders/{orderId}/transactions")
+    public ResponseEntity<Map<String, Object>> getOrderTransactions(@PathVariable Long orderId) {
+        User buyer = getCurrentUser();
+
+        try {
+            // Kiểm tra order có thuộc về buyer không
+            Orders order = orderService.getOrderById(orderId);
+            if (order.getUsers().getUserid() != buyer.getUserid()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Bạn không có quyền xem transactions của đơn hàng này"
+                ));
+            }
+
+            // Lấy transaction history chi tiết
+            Map<String, Object> transactionHistory = transactionService.getTransactionHistoryDetail(orderId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.putAll(transactionHistory); // Merge tất cả thông tin từ transactionHistory
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
     //Đánh giá sản phẩm và người bán sau khi hoàn tất giao dịch
     @PostMapping("/feedback")
     public ResponseEntity<Map<String, Object>> createFeedback(@Valid @RequestBody FeedbackRequest request) {
@@ -401,25 +497,24 @@ public class BuyerController {
     }
 
     //YÊU CẦU NÂNG CẤP LÊN SELLER
-    //Buyer gửi yêu cầu với CCCD và giấy tờ xe
-    //VALIDATION: Max 5MB, chỉ jpg/jpeg/png/pdf, bắt buộc upload cả 3 files
+    //Buyer gửi yêu cầu với CCCD (mặt trước + mặt sau)
+    //VALIDATION: Max 5MB, chỉ jpg/jpeg/png/pdf, bắt buộc upload cả 2 files CCCD
     @PostMapping("/request-seller-upgrade")
     public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
             @RequestParam("cccdFront") MultipartFile cccdFront,
-            @RequestParam("cccdBack") MultipartFile cccdBack,
-            @RequestParam("vehicleRegistration") MultipartFile vehicleRegistration) {
+            @RequestParam("cccdBack") MultipartFile cccdBack) {
 
         User buyer = getCurrentUser();
 
         try {
             // VALIDATION: Kiểm tra file size và type
-            List<MultipartFile> files = List.of(cccdFront, cccdBack, vehicleRegistration);
+            List<MultipartFile> files = List.of(cccdFront, cccdBack);
             for (MultipartFile file : files) {
                 // Check file không null và không empty
                 if (file == null || file.isEmpty()) {
                     return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
-                        "message", "Vui lòng upload đầy đủ CCCD (mặt trước + sau) và giấy tờ xe"
+                        "message", "Vui lòng upload đầy đủ CCCD (mặt trước + mặt sau)"
                     ));
                 }
 
@@ -472,9 +567,8 @@ public class BuyerController {
             String cccdBackUrl = imageUploadService.uploadImage(cccdBack, "seller_upgrade/cccd_back_" + buyer.getUserid());
             buyer.setCccdBackUrl(cccdBackUrl);
 
-            // Upload vehicle registration
-            String vehicleRegUrl = imageUploadService.uploadImage(vehicleRegistration, "seller_upgrade/vehicle_" + buyer.getUserid());
-            buyer.setVehicleRegistrationUrl(vehicleRegUrl);
+            // Xóa vehicleRegistrationUrl nếu có (không cần nữa)
+            buyer.setVehicleRegistrationUrl(null);
 
             // Cập nhật status
             buyer.setSellerUpgradeStatus("PENDING");
@@ -487,8 +581,7 @@ public class BuyerController {
             response.put("requestDate", buyer.getSellerUpgradeRequestDate());
             response.put("uploadedDocuments", Map.of(
                 "cccdFront", cccdFrontUrl,
-                "cccdBack", cccdBackUrl,
-                "vehicleRegistration", vehicleRegUrl
+                "cccdBack", cccdBackUrl
             ));
 
             return ResponseEntity.ok(response);
