@@ -63,14 +63,13 @@ public class AuthController {
         user.setIsactive(true);
 
         // GÁN ROLE MẶC ĐỊNH: BUYER
-        Role buyerRole = roleRepository.findByRolename("BUYER");
-        if (buyerRole == null) {
-            // Nếu chưa có role BUYER trong DB, tạo mới
-            buyerRole = new Role();
-            buyerRole.setRolename("BUYER");
-            buyerRole.setJoindate(new Date());
-            buyerRole = roleRepository.save(buyerRole);
-        }
+        Role buyerRole = roleRepository.findByRolename("BUYER")
+                .orElseGet(() -> {
+                    Role role = new Role();
+                    role.setRolename("BUYER");
+                    role.setJoindate(new Date());
+                    return roleRepository.save(role);
+                });
         user.setRoles(List.of(buyerRole));
 
         userRepository.save(user);

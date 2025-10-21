@@ -7,11 +7,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product,Long> {
     List<Product> findByTypeAndInWarehouse(String type, boolean inWarehouse);
     List<Product> findByUsers(User user);
     List<Product> findByUsers_Userid(Long userId);
+
+    // Tìm product theo tên và seller (seeds)
+    Optional<Product> findByProductnameAndUsers(String productname, User user);
 
     @Query("SELECT p FROM Product p LEFT JOIN p.brandcars bc LEFT JOIN p.brandbattery bb WHERE (:type IS NULL OR p.type = :type) " +
             "AND (:brand IS NULL OR p.model LIKE %:brand%) AND (:yearMin IS NULL OR (bc.year >= :yearMin OR bb.year >= :yearMin)) " +

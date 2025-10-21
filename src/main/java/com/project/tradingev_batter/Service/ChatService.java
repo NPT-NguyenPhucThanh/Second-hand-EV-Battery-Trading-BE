@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.Chatroom;
 import com.project.tradingev_batter.Entity.Message;
 import com.project.tradingev_batter.dto.ChatMessageDTO;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -17,6 +18,9 @@ public interface ChatService {
     List<Message> getMessagesByChatroom(Long chatroomId);
     void markMessagesAsRead(Long chatroomId, Long userId);
     
+    // Pagination for messages
+    Page<Message> getMessagesByChatroomPaginated(Long chatroomId, int page, int size);
+
     // Helper
     int getUnreadMessageCount(Long chatroomId, Long userId);
 }

@@ -9,6 +9,9 @@ import com.project.tradingev_batter.Repository.MessageRepository;
 import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
 import com.project.tradingev_batter.dto.ChatMessageDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -148,12 +151,13 @@ public class ChatServiceImpl implements ChatService {
     //Đếm số messages chưa đọc
     @Override
     public int getUnreadMessageCount(Long chatroomId, Long userId) {
-        Chatroom chatroom = getChatroomById(chatroomId);
-        List<Message> unreadMessages = messageRepository.findByChatroomAndIsReadFalse(chatroom);
-        
-        // Chỉ đếm messages mà user không phải là người gửi
-        return (int) unreadMessages.stream()
-                .filter(msg -> !msg.getSender().getUserid().equals(userId))
-                .count();
+        return messageRepository.countUnreadMessages(chatroomId, userId);
+    }
+
+    // Lấy messages với pagination (20 messages/page, từ mới → cũ)
+    @Override
+    public Page<Message> getMessagesByChatroomPaginated(Long chatroomId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return messageRepository.findByChatroomIdOrderByCreatedatDesc(chatroomId, pageable);
     }
 }

@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Repository;
 
+import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -33,4 +34,7 @@ public interface UserPackageRepository extends JpaRepository<UserPackage, Long> 
         @Param("userId") Long userId,
         @Param("currentDate") Date currentDate
     );
+
+    // Check xem user đã mua package chưa (seeds)
+    boolean existsByUserAndPackageService(User user, PackageService packageService);
 }

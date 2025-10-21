@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.Chatroom;
 import com.project.tradingev_batter.Entity.Message;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Service.ChatFileService;
 import com.project.tradingev_batter.Service.ChatService;
 import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.dto.ChatMessageDTO;
@@ -36,13 +37,16 @@ public class ChatController {
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationService notificationService;
+    private final ChatFileService chatFileService;
 
     public ChatController(ChatService chatService,
                          SimpMessagingTemplate messagingTemplate,
-                         NotificationService notificationService) {
+                         NotificationService notificationService,
+                         ChatFileService chatFileService) {
         this.chatService = chatService;
         this.messagingTemplate = messagingTemplate;
         this.notificationService = notificationService;
+        this.chatFileService = chatFileService;
     }
 
     // ============= REST API ENDPOINTS =============
@@ -129,7 +133,87 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
-    // ============= WEBSOCKET HANDLERS =============
+    //Lấy lịch sử chat với pagination
+    //Load 20 messages/page, từ mới → cũ
+    @GetMapping("/api/chat/chatrooms/{chatroomId}/messages/paginated")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getChatroomMessagesPaginated(
+            @PathVariable Long chatroomId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        User currentUser = getCurrentUser();
+
+        // Lấy messages với pagination
+        org.springframework.data.domain.Page<Message> messagePage =
+                chatService.getMessagesByChatroomPaginated(chatroomId, page, size);
+
+        // Đánh dấu messages là đã đọc
+        chatService.markMessagesAsRead(chatroomId, currentUser.getUserid());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("messages", messagePage.getContent().stream().map(msg -> Map.of(
+                "messageId", msg.getMessid(),
+                "senderId", msg.getSender().getUserid(),
+                "senderName", msg.getSender().getDisplayname() != null ? msg.getSender().getDisplayname() : msg.getSender().getUsername(),
+                "content", msg.getText() != null ? msg.getText() : "",
+                "messageType", msg.getMessageType() != null ? msg.getMessageType() : "TEXT",
+                "attachUrl", msg.getAttachUrl() != null ? msg.getAttachUrl() : "",
+                "timestamp", msg.getCreatedat(),
+                "isRead", msg.isRead()
+        )).collect(Collectors.toList()));
+
+        // Pagination metadata
+        response.put("pagination", Map.of(
+                "currentPage", messagePage.getNumber(),
+                "totalPages", messagePage.getTotalPages(),
+                "totalMessages", messagePage.getTotalElements(),
+                "pageSize", messagePage.getSize(),
+                "hasNext", messagePage.hasNext(),
+                "hasPrevious", messagePage.hasPrevious()
+        ));
+
+        return ResponseEntity.ok(response);
+    }
+    //Upload file attachment cho chat
+    //Hỗ trợ: PDF, DOCX, TXT (max 5MB)
+    @PostMapping(value = "/api/chat/chatrooms/{chatroomId}/upload",
+                 consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadChatAttachment(
+            @PathVariable Long chatroomId,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam("senderId") Long senderId) {
+
+        try {
+            // Validate và upload file
+            String fileUrl = chatFileService.uploadChatAttachment(file, chatroomId);
+
+            // Lấy thông tin file
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = chatFileService.getFileExtension(originalFilename);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Upload file thành công");
+            response.put("fileUrl", fileUrl);
+            response.put("fileName", originalFilename);
+            response.put("fileExtension", fileExtension);
+            response.put("fileSize", file.getSize());
+            response.put("note", "Sử dụng fileUrl này để gửi message với messageType=FILE");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    // ============= WEBSOCKET HANDLERS ================================================================================
 
     /**
      * Handle gửi message
@@ -218,7 +302,7 @@ public class ChatController {
         );
     }
 
-    // ============= HELPER METHODS =============
+    // ============= HELPER METHODS ====================================================================================
     
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

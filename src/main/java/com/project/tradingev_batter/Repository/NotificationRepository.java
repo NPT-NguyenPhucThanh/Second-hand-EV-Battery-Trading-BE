@@ -6,7 +6,12 @@ import org.springframework.stereotype.Repository;
 import com.project.tradingev_batter.Entity.Notification;
 
 import java.util.List;
+import java.util.Optional;
+
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification,Long> {
     List<Notification> findByUsers(User user);
+
+    // Tìm notification theo user và title (Seeds)
+    Optional<Notification> findByUsersAndTitle(User user, String title);
 }

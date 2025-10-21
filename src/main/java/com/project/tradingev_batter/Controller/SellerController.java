@@ -3,6 +3,8 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.PackagePurchaseRequest;
+import com.project.tradingev_batter.dto.PriceSuggestionRequest;
+import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import jakarta.validation.Valid;
@@ -26,15 +28,18 @@ public class SellerController {
     private final ProductService productService;
     private final FeedbackService feedbackService;
     private final ContractService contractService;
+    private final GeminiAIService geminiAIService;
 
     public SellerController(SellerService sellerService, 
                            ProductService productService,
                            FeedbackService feedbackService,
-                           ContractService contractService) {
+                           ContractService contractService,
+                           GeminiAIService geminiAIService) {
         this.sellerService = sellerService;
         this.productService = productService;
         this.feedbackService = feedbackService;
         this.contractService = contractService;
+        this.geminiAIService = geminiAIService;
     }
 
     //Mua các gói dịch vụ đăng bán (Cơ bản, Chuyên nghiệp, VIP)
@@ -446,6 +451,27 @@ public class SellerController {
         response.put("totalContracts", contracts.size());
 
         return ResponseEntity.ok(response);
+    }
+
+    // SELLER GỌI API ĐỂ GỢI Ý GIÁ DỰA TRÊN DỮ LIỆU THỊ TRƯỜNG
+    // Input: productType, brand, year, condition, model (optional), capacity/mileage (optional)
+    // Output: minPrice, maxPrice, suggestedPrice, marketInsight
+    @PostMapping("/suggest-price")
+    public ResponseEntity<PriceSuggestionResponse> suggestPrice(
+            @Valid @RequestBody PriceSuggestionRequest request) {
+
+        User seller = getCurrentUser(); // Chỉ seller mới được dùng feature này
+
+        try {
+            PriceSuggestionResponse suggestion = geminiAIService.suggestPrice(request);
+            return ResponseEntity.ok(suggestion);
+
+        } catch (Exception e) {
+            System.err.println("Error in price suggestion endpoint: " + e.getMessage());
+            // Fallback nếu có lỗi
+            PriceSuggestionResponse fallback = geminiAIService.suggestPrice(request);
+            return ResponseEntity.ok(fallback);
+        }
     }
 
     // =============== HELPER METHODS ==================================================================================

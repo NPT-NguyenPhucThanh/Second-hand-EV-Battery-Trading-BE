@@ -372,10 +372,8 @@ public class ManagerServiceImpl implements ManagerService {
 
         if (approved) {
             // Thêm role SELLER cho user
-            Role sellerRole = roleRepository.findByRolename("SELLER");
-            if (sellerRole == null) {
-                throw new RuntimeException("SELLER role not found");
-            }
+            Role sellerRole = roleRepository.findByRolename("SELLER")
+                    .orElseThrow(() -> new RuntimeException("SELLER role not found"));
             user.getRoles().add(sellerRole);
             user.setSellerUpgradeStatus("APPROVED");
             user.setRejectionReason(null); // Clear rejection reason nếu có
