@@ -68,6 +68,15 @@ public class ProductController {
     @GetMapping("/{id}")
     public ResponseEntity<ProductDetailResponse> getProductDetail(@PathVariable Long id) {
         Product product = productService.getProductById(id);
+
+        // Tự động tăng viewCount khi user/guest xem chi tiết sản phẩm
+        try {
+            productService.incrementViewCount(id);
+        } catch (Exception e) {
+            // Log error nhưng vẫn trả về product detail
+            System.err.println("Failed to increment view count: " + e.getMessage());
+        }
+
         List<Feedback> feedbacks = feedbackService.getFeedbacksByProduct(id);
         ProductDetailResponse response = new ProductDetailResponse(product, feedbacks);
         return ResponseEntity.ok(response);
@@ -216,4 +225,3 @@ public class ProductController {
         return uploadedCount;
     }
 }
-

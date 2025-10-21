@@ -153,4 +153,26 @@ public class ProductServiceImpl implements ProductService {
         
         return stats;
     }
+
+    // VIEW TRACKING - Tăng viewCount khi user/guest xem sản phẩm
+    // Mỗi lần gọi API này, viewCount sẽ tăng lên 1
+    // Frontend nên gọi API này khi user vào trang chi tiết sản phẩm
+    @Override
+    @Transactional
+    public void incrementViewCount(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        // Tăng viewCount lên 1
+        Integer currentViewCount = product.getViewCount();
+        if (currentViewCount == null) {
+            currentViewCount = 0;
+        }
+        product.setViewCount(currentViewCount + 1);
+
+        // Cập nhật updatedat
+        product.setUpdatedat(new Date());
+
+        productRepository.save(product);
+    }
 }

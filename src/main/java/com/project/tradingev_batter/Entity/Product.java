@@ -64,13 +64,13 @@ public class Product {
     @JoinColumn(name = "userid")
     private User users;
 
-    @OneToMany(mappedBy = "products")
+    @OneToMany(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<product_img> imgs = new ArrayList<>();
 
-    @OneToOne(mappedBy = "products")
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
     private Brandcars brandcars;
 
-    @OneToOne(mappedBy = "products")
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
     private Brandbattery  brandbattery;
 
     @OneToMany(mappedBy = "products")
@@ -79,7 +79,7 @@ public class Product {
     @OneToMany(mappedBy = "products")
     private List<Feedback> feedbacks = new ArrayList<>();
 
-    @OneToOne(mappedBy = "products")
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
     private Post posts;
 
     @OneToMany(mappedBy = "products")

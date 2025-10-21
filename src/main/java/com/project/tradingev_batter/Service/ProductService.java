@@ -25,4 +25,7 @@ public interface ProductService {
     // Helper methods cho Guest
     List<String> getBrandsByType(String type);
     Map<String, Object> getPublicStatistics();
+
+    // View tracking - Tăng viewCount khi user xem sản phẩm
+    void incrementViewCount(Long productId);
 }

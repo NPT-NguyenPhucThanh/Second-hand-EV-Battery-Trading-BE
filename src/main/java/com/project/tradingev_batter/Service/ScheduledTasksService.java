@@ -294,4 +294,60 @@ public class ScheduledTasksService {
             log.error("Error in auto-hide expired products job", e);
         }
     }
+
+    // NOTIFY SELLERS về gói sắp hết hạn (7 ngày trước)
+    // Chạy mỗi ngày lúc 9:00 AM
+    @Scheduled(cron = "0 0 9 * * ?") // 9:00 AM every day
+    @Transactional
+    public void notifyPackageExpiringSoon() {
+        try {
+            log.info("Starting package expiry warning job...");
+
+            Date currentDate = new Date();
+            Date sevenDaysLater = new Date(System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000));
+
+            List<UserPackage> expiringPackages = userPackageRepository.findAll().stream()
+                    .filter(pkg -> pkg.getExpiryDate() != null &&
+                                   pkg.getExpiryDate().after(currentDate) &&
+                                   pkg.getExpiryDate().before(sevenDaysLater))
+                    .toList();
+
+            if (expiringPackages.isEmpty()) {
+                log.info("No packages expiring in the next 7 days");
+                return;
+            }
+
+            log.info("Found {} packages expiring in the next 7 days", expiringPackages.size());
+
+            for (UserPackage userPackage : expiringPackages) {
+                try {
+                    Long userId = userPackage.getUser().getUserid();
+                    String packageName = userPackage.getPackageService().getName();
+                    Date expiryDate = userPackage.getExpiryDate();
+
+                    // Tính số ngày còn lại
+                    long daysRemaining = (expiryDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
+
+                    notificationService.createNotification(
+                        userId,
+                        "Gói dịch vụ sắp hết hạn",
+                        String.format("Gói '%s' của bạn sẽ hết hạn sau %d ngày (ngày %s). Vui lòng gia hạn để tiếp tục đăng bán sản phẩm.",
+                                packageName, daysRemaining, expiryDate.toString())
+                    );
+
+                    log.info("Notified user {} about package {} expiring in {} days",
+                            userId, packageName, daysRemaining);
+
+                } catch (Exception e) {
+                    log.error("Error notifying user about expiring package {}",
+                            userPackage.getUserpackageid(), e);
+                }
+            }
+
+            log.info("Package expiry warning job completed. Notified: {} users", expiringPackages.size());
+
+        } catch (Exception e) {
+            log.error("Error in package expiry warning job", e);
+        }
+    }
 }
