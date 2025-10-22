@@ -19,4 +19,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     
     // Seller Upgrade Request
     List<User> findBySellerUpgradeStatus(String status);
+
+    // Tìm user theo role
+    @Query("SELECT u FROM User u JOIN u.roles r WHERE r.rolename = :roleName")
+    List<User> findByRole(String roleName);
 }

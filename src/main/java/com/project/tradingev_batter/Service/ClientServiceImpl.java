@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class ClientServiceImpl implements ClientService {
@@ -126,7 +127,10 @@ public class ClientServiceImpl implements ClientService {
             createNotification(user, "Yêu cầu nâng cấp đã được gửi", 
                     "Yêu cầu nâng cấp lên Seller của bạn đã được gửi. Vui lòng chờ manager xét duyệt.");
 
-            // TODO: Tạo notification cho manager
+            // Tạo notification cho tất cả manager
+            createNotificationForAllManagers(
+                    "Yêu cầu nâng cấp Seller mới",
+                    "User " + user.getUsername() + " (ID: " + user.getUserid() + ") đã gửi yêu cầu nâng cấp lên Seller. Vui lòng xem xét.");
 
             return user;
         } catch (IOException e) {
@@ -186,5 +190,19 @@ public class ClientServiceImpl implements ClientService {
         notification.setCreated_time(new Date());
         notification.setUsers(user);
         notificationRepository.save(notification);
+    }
+
+    private void createNotificationForAllManagers(String title, String description) {
+        // lấy danh sách manager, lấy từ database hoặc service
+        List<User> managers = userRepository.findByRole("ROLE_MANAGER");
+
+        for (User manager : managers) {
+            Notification notification = new Notification();
+            notification.setTitle(title);
+            notification.setDescription(description);
+            notification.setCreated_time(new Date());
+            notification.setUsers(manager);
+            notificationRepository.save(notification);
+        }
     }
 }

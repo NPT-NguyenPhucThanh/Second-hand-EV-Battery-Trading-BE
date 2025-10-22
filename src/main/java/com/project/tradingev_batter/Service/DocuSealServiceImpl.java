@@ -3,11 +3,13 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.ContractsRepository;
 import com.project.tradingev_batter.Repository.NotificationRepository;
+import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.config.DocuSealConfig;
 import com.project.tradingev_batter.dto.docuseal.DocuSealSubmissionRequest;
 import com.project.tradingev_batter.dto.docuseal.DocuSealSubmissionResponse;
 import com.project.tradingev_batter.dto.docuseal.DocuSealWebhookPayload;
 import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
@@ -27,16 +29,19 @@ public class DocuSealServiceImpl implements DocuSealService {
     private final RestTemplate docuSealRestTemplate;
     private final ContractsRepository contractsRepository;
     private final NotificationRepository notificationRepository;
+    private final ProductRepository productRepository;
 
     public DocuSealServiceImpl(
             DocuSealConfig docuSealConfig,
             @Qualifier("docuSealRestTemplate") RestTemplate docuSealRestTemplate,
             ContractsRepository contractsRepository,
-            NotificationRepository notificationRepository) {
+            NotificationRepository notificationRepository,
+            ProductRepository productRepository) {
         this.docuSealConfig = docuSealConfig;
         this.docuSealRestTemplate = docuSealRestTemplate;
         this.contractsRepository = contractsRepository;
         this.notificationRepository = notificationRepository;
+        this.productRepository = productRepository;
     }
 
     /**
@@ -60,6 +65,7 @@ public class DocuSealServiceImpl implements DocuSealService {
             Contracts contract = new Contracts();
             contract.setSignedat(new Date());
             contract.setOrders(null); // Hợp đồng đăng bán không liên kết order
+            contract.setProducts(product); // Link product vào contract
             contract.setBuyers(null);
             contract.setSellers(seller);
             contract.setAdmins(manager);
@@ -223,15 +229,23 @@ public class DocuSealServiceImpl implements DocuSealService {
     //Xử lý khi hoàn tất hợp đồng đăng bán
     private void handleProductListingCompleted(Contracts contract) {
         User seller = contract.getSellers();
-        
+        Product product = contract.getProducts();
+
+        // Đưa xe vào kho và chuyển status sang DANG_BAN
+        if (product != null) {
+            product.setStatus(ProductStatus.DANG_BAN);
+            product.setInWarehouse(true);
+            product.setUpdatedat(new Date());
+            productRepository.save(product);
+
+            log.info("Product {} has been added to warehouse and status changed to DANG_BAN", product.getProductid());
+        }
+
         // Tạo notification cho seller
         createNotification(seller,
                 "Hợp đồng đăng bán đã hoàn tất",
-                "Hợp đồng đăng bán đã được ký thành công. Sản phẩm của bạn sẽ được đưa vào kho và hiển thị trên nền tảng.");
+                "Hợp đồng đăng bán đã được ký thành công. Sản phẩm " + (product != null ? product.getProductname() : "") + " đã được đưa vào kho và hiển thị trên nền tảng.");
 
-        // TODO: Tự động đưa xe vào kho (có thể cần manager xác nhận)
-        // Có thể gọi ManagerService.addToWarehouse() hoặc tạo notification cho manager
-        
         log.info("Product listing contract completed for seller: {}", seller.getUserid());
     }
 

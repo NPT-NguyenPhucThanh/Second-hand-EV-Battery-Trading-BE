@@ -296,8 +296,11 @@ public class SellerServiceImpl implements SellerService {
         notificationService.createNotification(seller.getUserid(), "Đăng xe thành công",
                 "Xe " + productname + " đã được đăng. Đang chờ kiểm định.");
         
-        // TODO: Tạo notification cho manager để duyệt
-        
+        // Tạo notification cho tất cả manager để duyệt
+        createNotificationForAllManagers(
+                "Xe mới cần duyệt",
+                "Seller " + seller.getUsername() + " đã đăng xe mới: " + productname + " (ID: " + product.getProductid() + "). Vui lòng kiểm tra và duyệt.");
+
         return product;
     }
 
@@ -598,6 +601,14 @@ public class SellerServiceImpl implements SellerService {
             }
         } else {
             throw new RuntimeException("packageType phải là CAR hoặc BATTERY");
+        }
+    }
+
+    //TẠO NOTIFICATION CHO TẤT CẢ MANAGER
+    private void createNotificationForAllManagers(String title, String description) {
+        List<User> managers = userRepository.findByRole("ROLE_MANAGER");
+        for (User manager : managers) {
+            notificationService.createNotification(manager.getUserid(), title, description);
         }
     }
 }

@@ -5,6 +5,8 @@ import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.TransactionRepository;
 import com.project.tradingev_batter.Service.VNPayService;
 import com.project.tradingev_batter.Service.SellerService;
+import com.project.tradingev_batter.Service.DocuSealService;
+import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import com.project.tradingev_batter.enums.TransactionType;
@@ -28,15 +30,21 @@ public class PaymentController {
     private final TransactionRepository transactionRepository;
     private final OrderRepository orderRepository;
     private final SellerService sellerService;
+    private final DocuSealService docuSealService;
+    private final NotificationService notificationService;
 
     public PaymentController(VNPayService vnPayService,
                            TransactionRepository transactionRepository,
                            OrderRepository orderRepository,
-                           SellerService sellerService) {
+                           SellerService sellerService,
+                           DocuSealService docuSealService,
+                           NotificationService notificationService) {
         this.vnPayService = vnPayService;
         this.transactionRepository = transactionRepository;
         this.orderRepository = orderRepository;
         this.sellerService = sellerService;
+        this.docuSealService = docuSealService;
+        this.notificationService = notificationService;
     }
 
     //TẠO PAYMENT URL - User click "Thanh toán" → API này tạo VNPay URL
@@ -452,18 +460,23 @@ public class PaymentController {
         contractData.put("depositAmount", order.getTotalamount() * 0.10);
         contractData.put("orderId", order.getOrderid());
 
-        // TODO: Gọi DocuSealService để tạo hợp đồng
-        // Gọi DocuSealService để tạo hợp đồng (tạm thời comment vì cần config DocuSeal)
-        // String contractUrl = docuSealService.createContract(contractType, contractData);
-        // log.info("Contract created: {}", contractUrl);
+        // Gọi DocuSealService để tạo hợp đồng
+        try {
+            docuSealService.createSaleTransactionContract(order, buyer, seller, transactionLocation);
+            log.info("Sale transaction contract created successfully for order {}", order.getOrderid());
+        } catch (Exception e) {
+            log.error("Failed to create DocuSeal contract: " + e.getMessage(), e);
+            // Không throw exception để không block flow thanh toán
+            // Có thể retry sau hoặc tạo manual
+        }
 
         // Tạo notification cho buyer
-        createNotification(buyer, "Hợp đồng đã được tạo",
+        notificationService.createNotification(buyer.getUserid(), "Hợp đồng đã được tạo",
                 "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
                 ". Hợp đồng đã được gửi qua email.");
 
         // Tạo notification cho seller
-        createNotification(seller, "Hợp đồng đã được tạo",
+        notificationService.createNotification(seller.getUserid(), "Hợp đồng đã được tạo",
                 "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
                 ". Hợp đồng đã được gửi qua email.");
 
@@ -471,8 +484,8 @@ public class PaymentController {
     }
 
     private void createNotification(User user, String title, String description) {
-        // TODO: Implement notification service
-        log.info("Notification: {} - {} for user {}", title, description, user.getUserid());
+        notificationService.createNotification(user.getUserid(), title, description);
+        log.info("Notification created: {} - {} for user {}", title, description, user.getUserid());
     }
 
     private String getIpAddress(HttpServletRequest request) {

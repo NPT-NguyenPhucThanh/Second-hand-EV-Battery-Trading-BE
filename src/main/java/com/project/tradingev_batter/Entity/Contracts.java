@@ -60,6 +60,10 @@ public class Contracts {
     private Orders orders;
 
     @ManyToOne
+    @JoinColumn(name = "productid")
+    private Product products;
+
+    @ManyToOne
     @JoinColumn(name = "buyerid")
     private User buyers;
 

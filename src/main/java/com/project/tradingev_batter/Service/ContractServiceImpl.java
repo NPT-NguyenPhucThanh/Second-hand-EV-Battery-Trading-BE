@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Service;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
 import com.project.tradingev_batter.enums.ProductStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +11,7 @@ import java.util.Date;
 import java.util.List;
 
 @Service
+@Slf4j
 public class ContractServiceImpl implements ContractService {
 
     private final ContractRepository contractRepository;
@@ -122,14 +124,22 @@ public class ContractServiceImpl implements ContractService {
 
             contractRepository.save(contract);
 
-            // TODO: Đưa xe vào kho và chuyển status product sang DANG_BAN
-            // Sẽ implement ở phần sau
+            // Đưa xe vào kho và chuyển status product sang DANG_BAN
+            Product product = contract.getProducts();
+            if (product != null) {
+                product.setStatus(ProductStatus.DANG_BAN);
+                product.setInWarehouse(true);
+                product.setUpdatedat(new Date());
+                productRepository.save(product);
+
+                log.info("Product {} has been added to warehouse and status changed to DANG_BAN", product.getProductid());
+            }
 
             // Tạo notification cho seller
             notificationService.createNotification(
                 contract.getSellers().getUserid(),
                 "Ký hợp đồng thành công",
-                "Hợp đồng đã được ký. Xe sẽ được đưa vào kho và hiển thị trên nền tảng."
+                "Hợp đồng đã được ký. Xe " + (product != null ? product.getProductname() : "") + " đã được đưa vào kho và hiển thị trên nền tảng."
             );
         }
 
@@ -147,4 +157,3 @@ public class ContractServiceImpl implements ContractService {
         return contractRepository.findBySellers_UseridOrderBySignedatDesc(sellerId);
     }
 }
-
