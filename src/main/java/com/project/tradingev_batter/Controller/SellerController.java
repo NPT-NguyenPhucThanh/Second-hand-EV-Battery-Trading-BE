@@ -7,6 +7,11 @@ import com.project.tradingev_batter.dto.PriceSuggestionRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +27,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/seller")
+@Tag(name = "Seller APIs", description = "API dành cho người bán - Quản lý gói dịch vụ, đăng bán sản phẩm, theo dõi doanh thu, hợp đồng, feedback")
 public class SellerController {
 
     private final SellerService sellerService;
@@ -45,6 +51,15 @@ public class SellerController {
     //Mua các gói dịch vụ đăng bán (Cơ bản, Chuyên nghiệp, VIP)
     //NOTE: API này CHỈ TẠO ĐƠN HÀNG MUA GÓI, chưa thanh toán
     //Seller cần gọi /api/payment/create-payment-url với transactionType=PACKAGE_PURCHASE để thanh toán
+    @Operation(
+            summary = "Mua gói dịch vụ đăng bán",
+            description = "Tạo đơn hàng mua gói dịch vụ (Cơ bản, Chuyên nghiệp, VIP). Seller cần thanh toán qua VNPay để kích hoạt gói."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đơn hàng đã được tạo - Trả về hướng dẫn thanh toán"),
+            @ApiResponse(responseCode = "400", description = "Gói không tồn tại hoặc không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập hoặc không có quyền Seller")
+    })
     @PostMapping("/packages/purchase")
     public ResponseEntity<Map<String, Object>> purchasePackage(
             @Valid @RequestBody PackagePurchaseRequest request) {

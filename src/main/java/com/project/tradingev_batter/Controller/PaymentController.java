@@ -11,6 +11,11 @@ import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import com.project.tradingev_batter.enums.TransactionType;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +28,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/payment")
+@Tag(name = "Payment APIs", description = "API thanh toán - Tích hợp VNPay cho đặt cọc, thanh toán cuối, mua gói dịch vụ")
 @Slf4j
 public class PaymentController {
 
@@ -48,9 +54,20 @@ public class PaymentController {
     }
 
     //TẠO PAYMENT URL - User click "Thanh toán" → API này tạo VNPay URL
+    @Operation(
+            summary = "Tạo URL thanh toán VNPay",
+            description = "Tạo payment URL để redirect buyer/seller sang VNPay. Hỗ trợ các loại: DEPOSIT (đặt cọc 10%), FINAL_PAYMENT (90% còn lại), PACKAGE_PURCHASE (mua gói)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về payment URL để redirect"),
+            @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc order không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi khi tạo payment URL")
+    })
     @PostMapping("/create-payment-url")
     public ResponseEntity<Map<String, Object>> createPaymentUrl(
+            @Parameter(description = "ID đơn hàng", required = true)
             @RequestParam Long orderId,
+            @Parameter(description = "Loại thanh toán: DEPOSIT, FINAL_PAYMENT, PACKAGE_PURCHASE", required = true)
             @RequestParam String transactionType,
             HttpServletRequest request) {
         
@@ -131,6 +148,10 @@ public class PaymentController {
     }
 
     //VNPAY RETURN URL - VNPay redirect về đây sau khi buyer thanh toán
+    @Operation(
+            summary = "VNPay Return URL",
+            description = "URL mà VNPay redirect buyer/seller về sau khi thanh toán (dùng cho Frontend hiển thị kết quả)"
+    )
     @GetMapping("/vnpay-return")
     public ResponseEntity<Map<String, Object>> vnpayReturn(@RequestParam Map<String, String> params) {
         try {
@@ -191,6 +212,14 @@ public class PaymentController {
     //VNPay sẽ gọi API này để thông báo kết quả thanh toán
     //IMPORTANT: Cần trả về đúng định dạng để VNPay ghi nhận đã nhận IPN
     //Nếu không, VNPay sẽ tiếp tục gửi lại nhiều lần
+    @Operation(
+            summary = "VNPay IPN Callback",
+            description = "Webhook callback từ VNPay sau khi thanh toán. VNPay tự động gọi endpoint này để thông báo kết quả thanh toán."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Xử lý callback thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu callback không hợp lệ")
+    })
     @PostMapping("/vnpay-ipn")
     public ResponseEntity<Map<String, Object>> vnpayIPN(@RequestParam Map<String, String> params) {
         try {

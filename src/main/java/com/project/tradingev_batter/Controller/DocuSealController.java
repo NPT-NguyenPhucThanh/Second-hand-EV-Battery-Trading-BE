@@ -2,6 +2,11 @@ package com.project.tradingev_batter.Controller;
 
 import com.project.tradingev_batter.Service.DocuSealService;
 import com.project.tradingev_batter.dto.docuseal.DocuSealWebhookPayload;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/docuseal")
+@Tag(name = "DocuSeal APIs", description = "API hợp đồng điện tử - Webhook callback từ DocuSeal khi hợp đồng được ký")
 @Slf4j
 public class DocuSealController {
 
@@ -34,6 +40,15 @@ public class DocuSealController {
      * @param payload Webhook payload từ DocuSeal
      * @return 200 OK để DocuSeal biết đã nhận được
      */
+    @Operation(
+            summary = "DocuSeal Webhook Callback",
+            description = "Webhook endpoint để nhận thông báo từ DocuSeal khi hợp đồng được ký hoàn tất. DocuSeal sẽ tự động gọi endpoint này."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Webhook xử lý thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu webhook không hợp lệ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi khi xử lý webhook")
+    })
     @PostMapping("/webhook")
     public ResponseEntity<Map<String, String>> handleWebhook(@RequestBody DocuSealWebhookPayload payload) {
         log.info("Received DocuSeal webhook: event_type={}, submission_id={}",

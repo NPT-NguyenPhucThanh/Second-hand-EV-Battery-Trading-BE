@@ -9,6 +9,11 @@ import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.dto.ChatMessageDTO;
 import com.project.tradingev_batter.dto.ChatroomRequest;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -32,6 +37,8 @@ import java.util.stream.Collectors;
  * 4. Server broadcast: /topic/chatroom/{chatroomId}
  */
 @Controller
+@RequestMapping("/api/chat")
+@Tag(name = "Chat APIs", description = "API chat real-time - Tạo chatroom, gửi/nhận tin nhắn, xem lịch sử chat")
 public class ChatController {
 
     private final ChatService chatService;
@@ -52,7 +59,16 @@ public class ChatController {
     // ============= REST API ENDPOINTS =============
 
     //Tạo hoặc lấy chatroom
-    @PostMapping("/api/chat/chatrooms")
+    @Operation(
+            summary = "Tạo chatroom mới",
+            description = "Tạo chatroom giữa buyer và seller. Nếu đã có chatroom thì trả về chatroom hiện tại."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin chatroom"),
+            @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
+    @PostMapping("/chatrooms")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> createOrGetChatroom(@RequestBody ChatroomRequest request) {
         User currentUser = getCurrentUser();
@@ -79,7 +95,11 @@ public class ChatController {
     }
 
     //Lấy tất cả chatrooms của user
-    @GetMapping("/api/chat/chatrooms")
+    @Operation(
+            summary = "Lấy danh sách chatrooms",
+            description = "Lấy tất cả chatrooms mà user hiện tại tham gia"
+    )
+    @GetMapping("/chatrooms")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getUserChatrooms() {
         User currentUser = getCurrentUser();
@@ -108,7 +128,15 @@ public class ChatController {
     }
 
     //Lấy lịch sử chat của chatroom
-    @GetMapping("/api/chat/chatrooms/{chatroomId}/messages")
+    @Operation(
+            summary = "Lấy lịch sử chat",
+            description = "Load 20 messages gần nhất khi mở chatroom. Hỗ trợ pagination để load thêm messages cũ hơn."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về danh sách messages với pagination"),
+            @ApiResponse(responseCode = "404", description = "Chatroom không tồn tại")
+    })
+    @GetMapping("/chatrooms/{chatroomId}/messages")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getChatroomMessages(@PathVariable Long chatroomId) {
         User currentUser = getCurrentUser();
@@ -135,7 +163,7 @@ public class ChatController {
 
     //Lấy lịch sử chat với pagination
     //Load 20 messages/page, từ mới → cũ
-    @GetMapping("/api/chat/chatrooms/{chatroomId}/messages/paginated")
+    @GetMapping("/chatrooms/{chatroomId}/messages/paginated")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getChatroomMessagesPaginated(
             @PathVariable Long chatroomId,
@@ -178,7 +206,7 @@ public class ChatController {
     }
     //Upload file attachment cho chat
     //Hỗ trợ: PDF, DOCX, TXT (max 5MB)
-    @PostMapping(value = "/api/chat/chatrooms/{chatroomId}/upload",
+    @PostMapping(value = "/chatrooms/{chatroomId}/upload",
                  consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseBody
     public ResponseEntity<Map<String, Object>> uploadChatAttachment(

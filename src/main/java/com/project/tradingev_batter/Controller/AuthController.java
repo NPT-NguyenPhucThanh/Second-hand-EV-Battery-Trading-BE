@@ -8,6 +8,10 @@ import com.project.tradingev_batter.dto.LoginRequest;
 import com.project.tradingev_batter.dto.RegisterRequest;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import com.project.tradingev_batter.security.JwtService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,6 +30,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Authentication APIs", description = "API xác thực - Đăng ký, đăng nhập, quản lý tài khoản")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
@@ -46,6 +51,15 @@ public class AuthController {
         this.roleRepository = roleRepository;
     }
 
+    @Operation(
+            summary = "Đăng ký tài khoản mới",
+            description = "Tạo tài khoản người dùng mới với role mặc định là BUYER. Username và email phải là duy nhất."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đăng ký thành công - Trả về thông tin user"),
+            @ApiResponse(responseCode = "400", description = "Username hoặc email đã tồn tại"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()) != null) {
@@ -84,6 +98,15 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Đăng nhập",
+            description = "Xác thực người dùng và trả về JWT token cho phiên làm việc tiếp theo."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đăng nhập thành công - Trả về JWT token"),
+            @ApiResponse(responseCode = "401", description = "Sai tên đăng nhập hoặc mật khẩu"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
         authenticationManager.authenticate(

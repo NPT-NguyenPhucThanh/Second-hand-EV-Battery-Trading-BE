@@ -1,30 +1,28 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.Notification;
-import com.project.tradingev_batter.Entity.PackageService;
-import com.project.tradingev_batter.Entity.Product;
-import com.project.tradingev_batter.Entity.User;
-import com.project.tradingev_batter.Entity.Refund;
-import com.project.tradingev_batter.Service.ManagerService;
-import com.project.tradingev_batter.Service.RefundService;
+import com.project.tradingev_batter.Entity.*;
+import com.project.tradingev_batter.Repository.PackageServiceRepository;
+import com.project.tradingev_batter.Service.*;
+import com.project.tradingev_batter.dto.*;
+import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import com.project.tradingev_batter.dto.ApprovalRequest;
-import com.project.tradingev_batter.dto.LockRequest;
-import com.project.tradingev_batter.Repository.PackageServiceRepository;
-import com.project.tradingev_batter.dto.RefundRequest;
-import com.project.tradingev_batter.dto.SellerUpgradeApprovalRequest;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/manager")
+@Tag(name = "Manager APIs", description = "API dành cho quản trị viên - Duyệt sản phẩm, kiểm định, quản lý giao dịch, xử lý tranh chấp, quản lý người dùng")
 public class ManagerController {
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
@@ -38,40 +36,47 @@ public class ManagerController {
         this.refundService = refundService;
     }
 
+    @Operation(summary = "Lấy danh sách thông báo cho quản lý")
     @GetMapping("/notifications/{managerId}")
     public ResponseEntity<List<Notification>> getNotifications(@PathVariable Long managerId) {
         return ResponseEntity.ok(managerService.getNotiForManager(managerId));
     }
 
+    @Operation(summary = "Duyệt sản phẩm (giai đoạn sơ bộ)")
     @PostMapping("/products/{productId}/approve-preliminary")
     public ResponseEntity<String> approvePreliminary(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
         managerService.approvePreliminaryProduct(productId, request.getNote(), request.isApproved());
         return ResponseEntity.ok("Processed");
     }
 
+    @Operation(summary = "Nhập kết quả kiểm định sản phẩm")
     @PostMapping("/products/{productId}/input-inspection")
     public ResponseEntity<String> inputInspection(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
         managerService.inputInspectionResult(productId, request.isApproved(), request.getNote());
         return ResponseEntity.ok("Processed");
     }
 
+    @Operation(summary = "Lấy danh sách sản phẩm trong kho")
     @GetMapping("/warehouse")
     public ResponseEntity<List<Product>> getWarehouse() {
         return ResponseEntity.ok(managerService.getWarehouseProducts());
     }
 
+    @Operation(summary = "Thêm sản phẩm vào kho")
     @PostMapping("/warehouse/add/{productId}")
     public ResponseEntity<String> addToWarehouse(@PathVariable Long productId) {
         managerService.addToWarehouse(productId);
         return ResponseEntity.ok("Added to warehouse");
     }
 
+    @Operation(summary = "Duyệt đơn hàng")
     @PostMapping("/orders/{orderId}/approve")
     public ResponseEntity<String> approveOrder(@PathVariable Long orderId, @RequestBody ApprovalRequest request) {
         managerService.approveOrder(orderId, request.isApproved(), request.getNote());
         return ResponseEntity.ok("Order processed");
     }
 
+    @Operation(summary = "Giải quyết tranh chấp")
     @SuppressWarnings("unchecked")
     @PostMapping("/disputes/{disputeId}/resolve")
     public ResponseEntity<String> resolveDispute(@PathVariable Long disputeId, @RequestBody Map<String, Object> request) {
@@ -89,6 +94,7 @@ public class ManagerController {
     }
 
     //Lấy danh sách yêu cầu nâng cấp
+    @Operation(summary = "Lấy danh sách yêu cầu nâng cấp của người bán")
     @GetMapping("/seller-upgrade/requests")
     public ResponseEntity<Map<String, Object>> getPendingSellerUpgradeRequests() {
         List<User> pendingRequests = managerService.getPendingSellerUpgradeRequests();
@@ -110,6 +116,7 @@ public class ManagerController {
     }
 
     //Xét duyệt yêu cầu nâng cấp
+    @Operation(summary = "Xét duyệt yêu cầu nâng cấp của người bán")
     @PostMapping("/seller-upgrade/{userId}/approve")
     public ResponseEntity<Map<String, Object>> approveSellerUpgradeRequest(
             @PathVariable Long userId, 
@@ -124,48 +131,57 @@ public class ManagerController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Khóa hoặc mở khóa người dùng")
     @PostMapping("/users/{userId}/lock")
     public ResponseEntity<String> lockUser(@PathVariable Long userId, @RequestBody LockRequest request) {
         managerService.lockUser(userId, request.isLock());
         return ResponseEntity.ok("User locked/unlocked");
     }
 
+    @Operation(summary = "Tạo gói dịch vụ mới")
     @PostMapping("/packages")
     public ResponseEntity<PackageService> createPackage(@RequestBody PackageService pkg) {
         return ResponseEntity.ok(managerService.createPackage(pkg));
     }
 
+    @Operation(summary = "Cập nhật thông tin gói dịch vụ")
     @PutMapping("/packages/{id}")
     public ResponseEntity<PackageService> updatePackage(@PathVariable Long id, @RequestBody PackageService pkg) {
         return ResponseEntity.ok(managerService.updatePackage(id, pkg));
     }
 
+    @Operation(summary = "Lấy tất cả các gói dịch vụ")
     @GetMapping("/packages")
     public ResponseEntity<List<PackageService>> getAllPackages() {
         return ResponseEntity.ok(packageServiceRepository.findAll());
     }
 
+    @Operation(summary = "Xóa gói dịch vụ")
     @DeleteMapping("/packages/{id}")
     public ResponseEntity<String> deletePackage(@PathVariable Long id) {
         packageServiceRepository.deleteById(id);
         return ResponseEntity.ok("Deleted");
     }
 
+    @Operation(summary = "Lấy báo cáo doanh thu")
     @GetMapping("/reports/revenue")
     public ResponseEntity<Map<String, Object>> getRevenueReport() {
         return ResponseEntity.ok(managerService.getRevenueReport());
     }
 
+    @Operation(summary = "Lấy báo cáo hệ thống")
     @GetMapping("/reports/system")
     public ResponseEntity<Map<String, Object>> getSystemReport() {
         return ResponseEntity.ok(managerService.getSystemReport());
     }
 
+    @Operation(summary = "Lấy danh sách sản phẩm trong kho đang chờ xử lý")
     @GetMapping("/warehouse/pending")
     public ResponseEntity<List<Product>> getPendingWarehouse() {
         return ResponseEntity.ok(managerService.getPendingWarehouseProducts());
     }
 
+    @Operation(summary = "Xóa sản phẩm khỏi kho")
     @PostMapping("/warehouse/remove/{productId}")
     public ResponseEntity<String> removeFromWarehouse(@PathVariable Long productId, @RequestBody Map<String, String> request) {
         String reason = request.get("reason");
@@ -173,6 +189,7 @@ public class ManagerController {
         return ResponseEntity.ok("Removed from warehouse");
     }
 
+    @Operation(summary = "Cập nhật trạng thái sản phẩm trong kho")
     @PutMapping("/warehouse/{productId}/status")
     public ResponseEntity<String> updateWarehouseStatus(@PathVariable Long productId, @RequestParam String newStatus) {
         managerService.updateWarehouseStatus(productId, newStatus);
@@ -180,6 +197,7 @@ public class ManagerController {
     }
 
     //Lấy tất cả refund requests
+    @Operation(summary = "Lấy tất cả các yêu cầu hoàn tiền")
     @GetMapping("/refunds")
     public ResponseEntity<Map<String, Object>> getAllRefunds() {
         List<Refund> refunds = refundService.getAllRefunds();
@@ -193,6 +211,7 @@ public class ManagerController {
     }
 
     //Lấy refund requests đang chờ xử lý (PENDING)
+    @Operation(summary = "Lấy các yêu cầu hoàn tiền đang chờ xử lý")
     @GetMapping("/refunds/pending")
     public ResponseEntity<Map<String, Object>> getPendingRefunds() {
         List<Refund> refunds = refundService.getRefundsByStatus(com.project.tradingev_batter.enums.RefundStatus.PENDING);
@@ -206,6 +225,7 @@ public class ManagerController {
     }
 
     //Lấy chi tiết refund request
+    @Operation(summary = "Lấy chi tiết một yêu cầu hoàn tiền")
     @GetMapping("/refunds/{refundId}")
     public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
         try {
@@ -225,6 +245,7 @@ public class ManagerController {
     }
 
     //Manager xử lý refund request
+    @Operation(summary = "Quản lý xử lý yêu cầu hoàn tiền")
     @PostMapping("/refunds/{refundId}/process")
     public ResponseEntity<Map<String, Object>> processRefund(
             @PathVariable Long refundId,
@@ -276,6 +297,7 @@ public class ManagerController {
     }
 
     //Lấy refunds của một order cụ thể
+    @Operation(summary = "Lấy danh sách yêu cầu hoàn tiền của một đơn hàng")
     @GetMapping("/refunds/order/{orderId}")
     public ResponseEntity<Map<String, Object>> getRefundsByOrder(@PathVariable Long orderId) {
         try {
@@ -298,6 +320,7 @@ public class ManagerController {
 
     //Dashboard tổng quan cho Manager
     //Hiển thị: pending tasks, recent activities, revenue, market trends
+    @Operation(summary = "Lấy thông tin tổng quan cho dashboard của quản lý")
     @GetMapping("/dashboard/overview")
     public ResponseEntity<Map<String, Object>> getDashboardOverview() {
         try {

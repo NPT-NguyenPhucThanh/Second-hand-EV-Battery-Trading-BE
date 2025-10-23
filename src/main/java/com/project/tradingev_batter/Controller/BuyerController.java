@@ -8,6 +8,11 @@ import com.project.tradingev_batter.dto.DisputeRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +28,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/buyer")
+@Tag(name = "Buyer APIs", description = "API dành cho người mua - Quản lý giỏ hàng, đặt hàng, đánh giá, khiếu nại, nâng cấp seller")
 public class BuyerController {
 
     private final CartService cartService;
@@ -62,9 +68,20 @@ public class BuyerController {
     }
 
     //Thêm sản phẩm vào giỏ hàng
+    @Operation(
+            summary = "Thêm sản phẩm vào giỏ hàng",
+            description = "Buyer thêm sản phẩm (xe/pin) vào giỏ hàng với số lượng chỉ định"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thêm vào giỏ hàng thành công"),
+            @ApiResponse(responseCode = "400", description = "Sản phẩm không tồn tại hoặc hết hàng"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping("/cart/add")
     public ResponseEntity<Map<String, Object>> addToCart(
+            @Parameter(description = "ID của sản phẩm cần thêm vào giỏ", required = true)
             @RequestParam Long productId,
+            @Parameter(description = "Số lượng sản phẩm", example = "1")
             @RequestParam(defaultValue = "1") int quantity) {
         
         User buyer = getCurrentUser();
@@ -79,6 +96,14 @@ public class BuyerController {
     }
 
     //Xem giỏ hàng
+    @Operation(
+            summary = "Xem giỏ hàng",
+            description = "Lấy danh sách sản phẩm trong giỏ hàng của buyer hiện tại"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về thông tin giỏ hàng"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/cart")
     public ResponseEntity<Map<String, Object>> getCart() {
         User buyer = getCurrentUser();
@@ -95,8 +120,14 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Xóa sản phẩm khỏi giỏ hàng",
+            description = "Xóa một item trong giỏ hàng"
+    )
     @DeleteMapping("/cart/remove/{itemId}")
-    public ResponseEntity<Map<String, Object>> removeFromCart(@PathVariable Long itemId) {
+    public ResponseEntity<Map<String, Object>> removeFromCart(
+            @Parameter(description = "ID của cart item cần xóa", required = true)
+            @PathVariable Long itemId) {
         User buyer = getCurrentUser();
         cartService.removeFromCart(buyer.getUserid(), itemId);
         
@@ -107,9 +138,15 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Cập nhật số lượng sản phẩm trong giỏ",
+            description = "Thay đổi số lượng của một item trong giỏ hàng"
+    )
     @PutMapping("/cart/update/{itemId}")
     public ResponseEntity<Map<String, Object>> updateCartItem(
+            @Parameter(description = "ID của cart item", required = true)
             @PathVariable Long itemId,
+            @Parameter(description = "Số lượng mới", required = true)
             @RequestParam int quantity) {
         
         User buyer = getCurrentUser();
@@ -124,6 +161,14 @@ public class BuyerController {
     }
 
     //Mua sản phẩm trực tiếp (Mua ngay)
+    @Operation(
+            summary = "Mua sản phẩm trực tiếp (Mua ngay)",
+            description = "Tạo đơn hàng từ 1 sản phẩm cụ thể. Nếu là xe, cần đặt cọc 10%."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đặt hàng thành công - Trả về thông tin order và yêu cầu đặt cọc nếu là xe"),
+            @ApiResponse(responseCode = "400", description = "Sản phẩm không khả dụng")
+    })
     @PostMapping("/orders/buy-now")
     public ResponseEntity<Map<String, Object>> buyNow(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
@@ -156,6 +201,10 @@ public class BuyerController {
     }
 
     //Mua từ giỏ hàng (Checkout)
+    @Operation(
+            summary = "Thanh toán từ giỏ hàng (Checkout)",
+            description = "Tạo đơn hàng từ tất cả sản phẩm trong giỏ hàng"
+    )
     @PostMapping("/orders/checkout")
     public ResponseEntity<Map<String, Object>> checkout(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
@@ -187,12 +236,25 @@ public class BuyerController {
      * 8. BE tạo hợp đồng DocuSeal
      * NOTE: API này CHỈ TẠO PAYMENT URL, không xử lý payment trực tiếp
      */
+    @Operation(
+            summary = "Đặt cọc 10% cho đơn hàng xe",
+            description = "Lưu thông tin giao dịch (điểm giao dịch, thời gian hẹn) và redirect sang VNPay để thanh toán đặt cọc"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thông tin đã lưu - Trả về hướng dẫn gọi API payment"),
+            @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc đơn hàng không hợp lệ")
+    })
     @PostMapping("/orders/{orderId}/deposit")
     public ResponseEntity<Map<String, Object>> makeDeposit(
+            @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId,
+            @Parameter(description = "Địa điểm giao dịch", required = true)
             @RequestParam String transactionLocation,
-            @RequestParam String appointmentDate, // Format: "yyyy-MM-dd HH:mm:ss" hoặc timestamp
+            @Parameter(description = "Thời gian hẹn giao dịch (yyyy-MM-dd HH:mm:ss hoặc timestamp)", required = true)
+            @RequestParam String appointmentDate,
+            @Parameter(description = "Có sang tên xe không?")
             @RequestParam(required = false, defaultValue = "false") Boolean transferOwnership,
+            @Parameter(description = "Có đổi biển số không?")
             @RequestParam(required = false, defaultValue = "false") Boolean changePlate,
             HttpServletRequest request) {
         
@@ -307,10 +369,17 @@ public class BuyerController {
      * 4. Buyer gọi API này để thanh toán 90% còn lại
      * 5. Redirect sang VNPay
      */
+    @Operation(
+            summary = "Thanh toán phần còn lại (90%)",
+            description = "Sau khi Manager duyệt, buyer đến điểm giao dịch và thanh toán 90% còn lại qua VNPay"
+    )
     @PostMapping("/orders/{orderId}/final-payment")
     public ResponseEntity<Map<String, Object>> makeFinalPayment(
+            @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId,
+            @Parameter(description = "Có sang tên xe không?")
             @RequestParam(required = false) Boolean transferOwnership,
+            @Parameter(description = "Có đổi biển số không?")
             @RequestParam(required = false) Boolean changePlate,
             HttpServletRequest request) {
         
@@ -363,6 +432,10 @@ public class BuyerController {
     }
 
     //Xem lịch sử giao dịch
+    @Operation(
+            summary = "Xem lịch sử đơn hàng",
+            description = "Lấy tất cả đơn hàng của buyer hiện tại"
+    )
     @GetMapping("/orders")
     public ResponseEntity<Map<String, Object>> getOrders() {
         User buyer = getCurrentUser();
@@ -376,8 +449,14 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Xem chi tiết một đơn hàng",
+            description = "Lấy thông tin chi tiết của đơn hàng bao gồm order details"
+    )
     @GetMapping("/orders/{orderId}")
-    public ResponseEntity<Map<String, Object>> getOrderDetail(@PathVariable Long orderId) {
+    public ResponseEntity<Map<String, Object>> getOrderDetail(
+            @Parameter(description = "ID đơn hàng", required = true)
+            @PathVariable Long orderId) {
         User buyer = getCurrentUser();
         
         try {
@@ -401,8 +480,14 @@ public class BuyerController {
     //XEM CHI TIẾT TRANSACTION HISTORY CỦA MỘT ORDER
     //Hiển thị tất cả transactions: DEPOSIT, FINAL_PAYMENT, REFUND, COMMISSION
     //API này giúp buyer theo dõi chi tiết luồng tiền của đơn hàng
+    @Operation(
+            summary = "Xem lịch sử giao dịch của đơn hàng",
+            description = "Hiển thị tất cả transactions: DEPOSIT, FINAL_PAYMENT, REFUND, COMMISSION"
+    )
     @GetMapping("/orders/{orderId}/transactions")
-    public ResponseEntity<Map<String, Object>> getOrderTransactions(@PathVariable Long orderId) {
+    public ResponseEntity<Map<String, Object>> getOrderTransactions(
+            @Parameter(description = "ID đơn hàng", required = true)
+            @PathVariable Long orderId) {
         User buyer = getCurrentUser();
 
         try {
@@ -433,6 +518,10 @@ public class BuyerController {
     }
 
     //Đánh giá sản phẩm và người bán sau khi hoàn tất giao dịch
+    @Operation(
+            summary = "Đánh giá sản phẩm và người bán",
+            description = "Buyer tạo feedback sau khi hoàn tất giao dịch (chỉ khi order status = DA_HOAN_TAT)"
+    )
     @PostMapping("/feedback")
     public ResponseEntity<Map<String, Object>> createFeedback(@Valid @RequestBody FeedbackRequest request) {
         User buyer = getCurrentUser();
@@ -454,6 +543,10 @@ public class BuyerController {
     }
 
     //Gửi khiếu nại nếu có vấn đề xảy ra
+    @Operation(
+            summary = "Gửi khiếu nại",
+            description = "Tạo dispute cho đơn hàng có vấn đề. Order status sẽ chuyển sang TRANH_CHAP."
+    )
     @PostMapping("/dispute")
     public ResponseEntity<Map<String, Object>> createDispute(@Valid @RequestBody DisputeRequest request) {
         User buyer = getCurrentUser();
@@ -474,6 +567,10 @@ public class BuyerController {
     }
 
     //Xem các khiếu nại của mình
+    @Operation(
+            summary = "Xem danh sách khiếu nại của mình",
+            description = "Lấy tất cả disputes do buyer tạo"
+    )
     @GetMapping("/disputes")
     public ResponseEntity<Map<String, Object>> getDisputes() {
         User buyer = getCurrentUser();
@@ -487,8 +584,14 @@ public class BuyerController {
     }
 
     //Xác nhận đã nhận hàng (cho đơn hàng pin)
+    @Operation(
+            summary = "Xác nhận đã nhận hàng (cho đơn pin)",
+            description = "Buyer xác nhận đã nhận pin. Sau 3 ngày hệ thống sẽ tự động xác nhận nếu buyer không thao tác."
+    )
     @PostMapping("/orders/{orderId}/confirm-receipt")
-    public ResponseEntity<Map<String, Object>> confirmReceipt(@PathVariable Long orderId) {
+    public ResponseEntity<Map<String, Object>> confirmReceipt(
+            @Parameter(description = "ID đơn hàng", required = true)
+            @PathVariable Long orderId) {
         User buyer = getCurrentUser();
         
         Orders order = orderService.confirmReceipt(buyer.getUserid(), orderId);
@@ -504,9 +607,19 @@ public class BuyerController {
     //YÊU CẦU NÂNG CẤP LÊN SELLER
     //Buyer gửi yêu cầu với CCCD (mặt trước + mặt sau)
     //VALIDATION: Max 5MB, chỉ jpg/jpeg/png/pdf, bắt buộc upload cả 2 files CCCD
+    @Operation(
+            summary = "Gửi yêu cầu nâng cấp lên Seller",
+            description = "Upload CCCD (mặt trước + mặt sau) để yêu cầu trở thành Seller. Max 5MB/file, chỉ chấp nhận jpg/jpeg/png/pdf."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Yêu cầu đã gửi - Chờ Manager xét duyệt"),
+            @ApiResponse(responseCode = "400", description = "File không hợp lệ hoặc đã là Seller")
+    })
     @PostMapping("/request-seller-upgrade")
     public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
+            @Parameter(description = "CCCD mặt trước (max 5MB, jpg/jpeg/png/pdf)", required = true)
             @RequestParam("cccdFront") MultipartFile cccdFront,
+            @Parameter(description = "CCCD mặt sau (max 5MB, jpg/jpeg/png/pdf)", required = true)
             @RequestParam("cccdBack") MultipartFile cccdBack) {
 
         User buyer = getCurrentUser();
@@ -600,6 +713,10 @@ public class BuyerController {
     }
 
     //XEM TRẠNG THÁI YÊU CẦU NÂNG CẤP
+    @Operation(
+            summary = "Xem trạng thái yêu cầu nâng cấp",
+            description = "Kiểm tra trạng thái yêu cầu nâng cấp lên Seller (NOT_REQUESTED, PENDING, APPROVED, REJECTED)"
+    )
     @GetMapping("/seller-upgrade-status")
     public ResponseEntity<Map<String, Object>> getSellerUpgradeStatus() {
         User buyer = getCurrentUser();
@@ -635,6 +752,15 @@ public class BuyerController {
     // Buyer tham khảo giá thị trường trước khi mua xe/pin
     // Rate limit: 10 requests/minute/user
     // Cache: 24 hours
+    @Operation(
+            summary = "Gợi ý giá bán từ Gemini AI",
+            description = "Buyer tham khảo giá thị trường trước khi mua xe/pin. Rate limit: 10 requests/minute/user, cache 24h."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Trả về gợi ý giá từ AI"),
+            @ApiResponse(responseCode = "429", description = "Vượt quá giới hạn rate limit"),
+            @ApiResponse(responseCode = "500", description = "Lỗi khi gọi AI API")
+    })
     @PostMapping("/ai/suggest-price")
     public ResponseEntity<Map<String, Object>> suggestPrice(@Valid @RequestBody PriceSuggestionRequest request) {
         User buyer = getCurrentUser();

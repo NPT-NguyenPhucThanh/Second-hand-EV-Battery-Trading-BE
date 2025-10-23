@@ -9,23 +9,34 @@ import com.project.tradingev_batter.Service.ImageUploadService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
 import com.project.tradingev_batter.dto.ProductDetailResponse;
+import com.project.tradingev_batter.dto.ProductRequest;
 import com.project.tradingev_batter.dto.SellerInfoResponse;
 import com.project.tradingev_batter.enums.ProductStatus;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.project.tradingev_batter.Entity.product_img;
-import org.springframework.web.bind.annotation.RequestPart;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
+@Tag(name = "Product APIs", description = "API quản lý sản phẩm - CRUD operations cho sản phẩm (xe và pin)")
 public class ProductController {
 
     private final ProductService productService;
@@ -46,6 +57,10 @@ public class ProductController {
         this.userService = userService;
     }
 
+    @Operation(
+            summary = "Lấy danh sách tất cả sản phẩm",
+            description = "Lấy tất cả sản phẩm trong hệ thống (cần quyền Admin/Manager)"
+    )
     @GetMapping
     public ResponseEntity<List<Product>> getAllProducts() {
         return ResponseEntity.ok(productService.getAllProducts());
@@ -65,8 +80,18 @@ public class ProductController {
         return ResponseEntity.ok(productService.searchAndFilterProducts(type, brand, yearMin, yearMax, capacityMin, capacityMax, status, priceMin, priceMax));
     }
 
+    @Operation(
+            summary = "Lấy chi tiết sản phẩm",
+            description = "Lấy thông tin chi tiết của một sản phẩm theo ID"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDetailResponse> getProductDetail(@PathVariable Long id) {
+    public ResponseEntity<ProductDetailResponse> getProductById(
+            @Parameter(description = "ID của sản phẩm", required = true)
+            @PathVariable Long id) {
         Product product = productService.getProductById(id);
 
         // Tự động tăng viewCount khi user/guest xem chi tiết sản phẩm
@@ -91,6 +116,10 @@ public class ProductController {
     }
 
     // Create product with optional images
+    @Operation(
+            summary = "Tạo sản phẩm mới",
+            description = "Tạo sản phẩm mới (xe hoặc pin) - Yêu cầu quyền Seller"
+    )
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Product> createProduct(
             @RequestParam("productname") String productname,
@@ -140,6 +169,10 @@ public class ProductController {
     }
 
     // Update product with optional new images
+    @Operation(
+            summary = "Cập nhật sản phẩm",
+            description = "Cập nhật thông tin sản phẩm - Chỉ owner hoặc Admin mới được phép"
+    )
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Product> updateProduct(
             @PathVariable Long id,
@@ -200,10 +233,18 @@ public class ProductController {
         return ResponseEntity.ok("Successfully uploaded " + uploadedCount + " images");
     }
 
+    @Operation(
+            summary = "Xóa sản phẩm",
+            description = "Xóa sản phẩm - Chỉ owner hoặc Admin mới được phép"
+    )
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteProduct(
+            @Parameter(description = "ID của sản phẩm", required = true)
+            @PathVariable Long id) {
         productService.deleteProduct(id);
-        return ResponseEntity.ok().build();
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Product deleted successfully");
+        return ResponseEntity.ok(response);
     }
 
     // Private helper method to handle image uploads

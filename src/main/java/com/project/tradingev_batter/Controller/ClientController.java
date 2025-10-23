@@ -3,6 +3,10 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.ClientService;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -18,6 +22,7 @@ import java.util.Map;
 //Quản lý profile, Seller Upgrade Request
 @RestController
 @RequestMapping("/api/client")
+@Tag(name = "Client APIs", description = "API công khai không cần đăng nhập - Xem gói dịch vụ")
 public class ClientController {
 
     private final ClientService clientService;
@@ -28,6 +33,12 @@ public class ClientController {
 
 
      //Xem profile
+    @Operation(summary = "Xem thông tin profile", description = "Lấy thông tin chi tiết của người dùng đang đăng nhập")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin profile"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/profile")
     public ResponseEntity<Map<String, Object>> getProfile() {
         User user = getCurrentUser();
@@ -41,6 +52,13 @@ public class ClientController {
     }
 
     //Cập nhật profile
+    @Operation(summary = "Cập nhật thông tin profile", description = "Cập nhật thông tin người dùng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Cập nhật thông tin profile"),
+            @ApiResponse(responseCode = "400", description = "Lỗi dữ liệu đầu vào"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PutMapping("/profile")
     public ResponseEntity<Map<String, Object>> updateProfile(@RequestBody User updatedUser) {
         User user = getCurrentUser();
@@ -65,6 +83,13 @@ public class ClientController {
     }
 
     //Đổi mật khẩu
+    @Operation(summary = "Đổi mật khẩu", description = "Thay đổi mật khẩu cho tài khoản người dùng")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Đổi mật khẩu"),
+            @ApiResponse(responseCode = "400", description = "Lỗi dữ liệu đầu vào"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PostMapping("/change-password")
     public ResponseEntity<Map<String, Object>> changePassword(
             @RequestParam String oldPassword,
@@ -92,6 +117,13 @@ public class ClientController {
     }
 
     //Gửi yêu cầu nâng cấp từ Client lên Seller
+    @Operation(summary = "Gửi yêu cầu nâng cấp lên Seller", description = "Gửi yêu cầu nâng cấp tài khoản từ Client lên Seller kèm theo tài liệu cần thiết")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Yêu cầu nâng cấp đã được gửi"),
+            @ApiResponse(responseCode = "400", description = "Lỗi dữ liệu đầu vào"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PostMapping(value = "/seller-upgrade/request", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
             @RequestParam("cccdFront") MultipartFile cccdFront,
@@ -124,6 +156,12 @@ public class ClientController {
     }
 
     //Theo dõi tiến trình xét duyệt bởi Manager
+    @Operation(summary = "Theo dõi tiến trình xét duyệt nâng cấp", description = "Lấy thông tin về tiến trình xét duyệt yêu cầu nâng cấp tài khoản")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin tiến trình xét duyệt"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/seller-upgrade/status")
     public ResponseEntity<Map<String, Object>> getSellerUpgradeStatus() {
         User user = getCurrentUser();
@@ -157,6 +195,13 @@ public class ClientController {
     }
 
     //Gửi lại yêu cầu nếu bị từ chối
+    @Operation(summary = "Gửi lại yêu cầu nâng cấp", description = "Gửi lại yêu cầu nâng cấp tài khoản nếu bị từ chối trước đó")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Yêu cầu đã được gửi lại"),
+            @ApiResponse(responseCode = "400", description = "Lỗi dữ liệu đầu vào"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @PostMapping(value = "/seller-upgrade/resubmit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> resubmitSellerUpgrade(
             @RequestParam("cccdFront") MultipartFile cccdFront,

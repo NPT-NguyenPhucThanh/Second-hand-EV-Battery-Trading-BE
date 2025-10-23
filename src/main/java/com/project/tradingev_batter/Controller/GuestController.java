@@ -8,6 +8,11 @@ import com.project.tradingev_batter.Service.PackageServiceService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
 import com.project.tradingev_batter.enums.ProductStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +32,7 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/public")
+@Tag(name = "Guest APIs", description = "API công khai cho người dùng chưa đăng nhập - Xem sản phẩm, tìm kiếm, lọc")
 public class GuestController {
 
     private final ProductService productService;
@@ -41,10 +47,21 @@ public class GuestController {
 
     //Xem danh sách tất cả sản phẩm (xe và pin đang bán)
     //Chỉ hiển thị sản phẩm có status = DANG_BAN
+    @Operation(
+            summary = "Xem danh sách sản phẩm",
+            description = "Lấy danh sách tất cả sản phẩm đang bán (DANG_BAN). Hỗ trợ lọc theo loại và phân trang."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về danh sách sản phẩm với pagination"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/products")
     public ResponseEntity<Map<String, Object>> getAllProducts(
-            @RequestParam(required = false) String type, // "Car EV" hoặc "Battery"
+            @Parameter(description = "Loại sản phẩm: 'Car EV' hoặc 'Battery'")
+            @RequestParam(required = false) String type,
+            @Parameter(description = "Số trang (0-based)", example = "0")
             @RequestParam(required = false, defaultValue = "0") Integer page,
+            @Parameter(description = "Số sản phẩm mỗi trang", example = "10")
             @RequestParam(required = false, defaultValue = "10") Integer size) {
 
         List<Product> products = productService.getAllProducts();
@@ -84,6 +101,14 @@ public class GuestController {
 
     //FE-02: Tìm kiếm và lọc sản phẩm theo nhiều tiêu chí
     //Query params: brand, year, minPrice, maxPrice, condition, type
+    @Operation(
+            summary = "Tìm kiếm và lọc sản phẩm",
+            description = "Tìm kiếm sản phẩm theo nhiều tiêu chí như tên, thương hiệu, năm sản xuất, giá, tình trạng, loại sản phẩm."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về danh sách sản phẩm tìm được"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/products/search")
     public ResponseEntity<Map<String, Object>> searchProducts(
             @RequestParam(required = false) String keyword,
@@ -187,6 +212,15 @@ public class GuestController {
 
     //FE-03: Xem chi tiết sản phẩm
     //Tự động tăng viewCount khi xem chi tiết
+    @Operation(
+            summary = "Xem chi tiết sản phẩm",
+            description = "Lấy thông tin chi tiết của một sản phẩm bao gồm thông tin cơ bản, người bán, đánh giá."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin chi tiết sản phẩm"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy sản phẩm"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/products/{productId}")
     public ResponseEntity<Map<String, Object>> getProductDetail(@PathVariable Long productId) {
         try {
@@ -243,6 +277,15 @@ public class GuestController {
     }
 
     //Xem thông tin người bán và các sản phẩm họ đang đăng
+    @Operation(
+            summary = "Xem thông tin người bán",
+            description = "Lấy thông tin chi tiết của người bán bao gồm thông tin cá nhân và danh sách sản phẩm đang bán."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin người bán và sản phẩm"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy người bán"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/sellers/{sellerId}")
     public ResponseEntity<Map<String, Object>> getSellerInfo(@PathVariable Long sellerId) {
         try {
@@ -293,6 +336,14 @@ public class GuestController {
 
     //FE-06: Endpoint để kiểm tra xem action có yêu cầu đăng nhập không
     //FE gọi API này trước khi thực hiện action mua hoặc chat
+    @Operation(
+            summary = "Kiểm tra yêu cầu đăng nhập",
+            description = "Kiểm tra xem action mua hoặc chat có yêu cầu đăng nhập hay không."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin yêu cầu đăng nhập"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/check-auth")
     public ResponseEntity<Map<String, Object>> checkAuthRequired(
             @RequestParam String action) { // "buy" hoặc "chat"
@@ -310,6 +361,14 @@ public class GuestController {
     }
 
     //Xem danh sách gói dịch vụ theo loại (dành cho guest và seller)
+    @Operation(
+            summary = "Xem danh sách gói dịch vụ",
+            description = "Lấy danh sách tất cả gói dịch vụ hoặc lọc theo loại gói (CAR/BATTERY)."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về danh sách gói dịch vụ"),
+            @ApiResponse(responseCode = "500", description = "Lỗi server")
+    })
     @GetMapping("/package-services")
     public ResponseEntity<Map<String, Object>> getAllPackageServices(
             @RequestParam(required = false) String packageType) {

@@ -4,6 +4,11 @@ import com.project.tradingev_batter.Entity.Notification;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.security.CustomUserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,6 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
+@Tag(name = "Notification APIs", description = "API quản lý thông báo - Xem và xóa thông báo")
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -25,6 +31,10 @@ public class NotificationController {
     }
 
     // Lay danh sach notifications cua user hien tai
+    @Operation(
+            summary = "Lấy tất cả thông báo của user",
+            description = "Lấy danh sách tất cả thông báo, sắp xếp từ mới đến cũ"
+    )
     @GetMapping
     public ResponseEntity<Map<String, Object>> getUserNotifications() {
         User currentUser = getCurrentUser();
@@ -47,9 +57,14 @@ public class NotificationController {
         return ResponseEntity.ok(response);
     }
 
-    // Xoa mot notification
+    @Operation(
+            summary = "Xóa thông báo",
+            description = "Xóa một thông báo"
+    )
     @DeleteMapping("/{notificationId}")
-    public ResponseEntity<Map<String, Object>> deleteNotification(@PathVariable Long notificationId) {
+    public ResponseEntity<Map<String, Object>> deleteNotification(
+            @Parameter(description = "ID của thông báo", required = true)
+            @PathVariable Long notificationId) {
         try {
             notificationService.deleteNotification(notificationId);
 
@@ -74,4 +89,3 @@ public class NotificationController {
         return userDetails.getUser();
     }
 }
-
