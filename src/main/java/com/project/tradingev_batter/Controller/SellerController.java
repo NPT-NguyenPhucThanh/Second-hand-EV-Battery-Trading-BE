@@ -463,13 +463,13 @@ public class SellerController {
         User seller = getCurrentUser(); // Chỉ seller mới được dùng feature này
 
         try {
-            PriceSuggestionResponse suggestion = geminiAIService.suggestPrice(request);
+            PriceSuggestionResponse suggestion = geminiAIService.suggestPrice(request, seller.getUserid());
             return ResponseEntity.ok(suggestion);
 
         } catch (Exception e) {
             System.err.println("Error in price suggestion endpoint: " + e.getMessage());
             // Fallback nếu có lỗi
-            PriceSuggestionResponse fallback = geminiAIService.suggestPrice(request);
+            PriceSuggestionResponse fallback = geminiAIService.suggestPrice(request, seller.getUserid());
             return ResponseEntity.ok(fallback);
         }
     }

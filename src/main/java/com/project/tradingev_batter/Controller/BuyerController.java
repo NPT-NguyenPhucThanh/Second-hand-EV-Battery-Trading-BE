@@ -5,6 +5,8 @@ import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.CheckoutRequest;
 import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.DisputeRequest;
+import com.project.tradingev_batter.dto.PriceSuggestionRequest;
+import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -33,6 +35,7 @@ public class BuyerController {
     private final UserService userService;
     private final ImageUploadService imageUploadService;
     private final TransactionService transactionService;
+    private final GeminiAIService geminiAIService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
@@ -43,7 +46,8 @@ public class BuyerController {
                           VNPayService vnPayService,
                           UserService userService,
                           ImageUploadService imageUploadService,
-                          TransactionService transactionService) {
+                          TransactionService transactionService,
+                          GeminiAIService geminiAIService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
@@ -54,6 +58,7 @@ public class BuyerController {
         this.userService = userService;
         this.imageUploadService = imageUploadService;
         this.transactionService = transactionService;
+        this.geminiAIService = geminiAIService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -624,6 +629,52 @@ public class BuyerController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    //GEMINI AI - GỢI Ý GIÁ BÁN CHO BUYER/
+    // Buyer tham khảo giá thị trường trước khi mua xe/pin
+    // Rate limit: 10 requests/minute/user
+    // Cache: 24 hours
+    @PostMapping("/ai/suggest-price")
+    public ResponseEntity<Map<String, Object>> suggestPrice(@Valid @RequestBody PriceSuggestionRequest request) {
+        User buyer = getCurrentUser();
+
+        try {
+            // Gọi Gemini AI với rate limiting và caching
+            PriceSuggestionResponse aiResponse = geminiAIService.suggestPrice(request, buyer.getUserid());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("productType", request.getProductType());
+            response.put("brand", request.getBrand());
+            response.put("model", request.getModel());
+            response.put("year", request.getYear());
+            response.put("condition", request.getCondition());
+            response.put("priceSuggestion", Map.of(
+                "minPrice", aiResponse.getMinPrice(),
+                "maxPrice", aiResponse.getMaxPrice(),
+                "suggestedPrice", aiResponse.getSuggestedPrice(),
+                "marketInsight", aiResponse.getMarketInsight()
+            ));
+            response.put("note", "Giá tham khảo từ Gemini AI. Giá thực tế có thể thay đổi tùy vào tình trạng cụ thể của sản phẩm.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            // Rate limit exceeded
+            if (e.getMessage().contains("Rate limit exceeded")) {
+                return ResponseEntity.status(429).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+                ));
+            }
+
+            // Other errors
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", "Không thể lấy gợi ý giá: " + e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
     }
 
     // =============== HELPER METHODS ==================================================================================

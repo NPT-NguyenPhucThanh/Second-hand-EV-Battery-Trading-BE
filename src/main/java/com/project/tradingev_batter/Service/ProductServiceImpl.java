@@ -1,6 +1,7 @@
 package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.product_img;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Repository.ProductRepository;
@@ -14,10 +15,12 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final UserService userService;
+    private final ImageUploadService imageUploadService;
 
-    public ProductServiceImpl(ProductRepository productRepository, UserService userService) {
+    public ProductServiceImpl(ProductRepository productRepository, UserService userService, ImageUploadService imageUploadService) {
         this.userService = userService;
         this.productRepository = productRepository;
+        this.imageUploadService = imageUploadService;
     }
 
     @Override
@@ -76,7 +79,58 @@ public class ProductServiceImpl implements ProductService {
         if (!product.getOrder_detail().isEmpty()) {
             throw new RuntimeException("Không thể xóa sản phẩm đang có trong đơn hàng");
         }
+
+        // Xóa tất cả ảnh của sản phẩm từ Cloudinary trước khi xóa product
+        if (product.getImgs() != null && !product.getImgs().isEmpty()) {
+            for (product_img img : product.getImgs()) {
+                try {
+                    String imageUrl = img.getUrl();
+                    if (imageUrl != null && imageUrl.contains("cloudinary.com")) {
+                        // Extract public_id từ Cloudinary URL
+                        String publicId = extractPublicIdFromUrl(imageUrl);
+                        if (publicId != null) {
+                            imageUploadService.deleteImage(publicId);
+                            System.out.println("Đã xóa ảnh từ Cloudinary: " + publicId);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Không thể xóa ảnh từ Cloudinary: " + e.getMessage());
+                    // Vẫn tiếp tục xóa product ngay cả khi xóa ảnh fail
+                }
+            }
+        }
+
         productRepository.deleteById(id);
+    }
+
+    //Helper method: Extract public_id từ Cloudinary URL
+    private String extractPublicIdFromUrl(String imageUrl) {
+        try {
+            if (imageUrl == null || !imageUrl.contains("cloudinary.com")) {
+                return null;
+            }
+
+            // Split by "/upload/"
+            String[] parts = imageUrl.split("/upload/");
+            if (parts.length < 2) return null;
+
+            // Lấy phần sau "/upload/v{version}/"
+            String afterUpload = parts[1];
+
+            // Remove version prefix (v1234567890/)
+            String withoutVersion = afterUpload.replaceFirst("v\\d+/", "");
+
+            // Remove file extension
+            int dotIndex = withoutVersion.lastIndexOf('.');
+            if (dotIndex > 0) {
+                withoutVersion = withoutVersion.substring(0, dotIndex);
+            }
+
+            return withoutVersion;
+        } catch (Exception e) {
+            System.err.println("Error extracting public_id: " + e.getMessage());
+            return null;
+        }
     }
 
     @Override

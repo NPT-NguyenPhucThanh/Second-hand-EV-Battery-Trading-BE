@@ -9,29 +9,59 @@ import org.springframework.http.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
 public class GeminiAIService {
 
-    @Value("${gemini.api.key:AIzaSyBZChmiQl3VV0yiYzTcW4AxQNKON9fCCgU}")
+    @Value("${gemini.api.key}")
     private String apiKey;
+
+    @Value("${gemini.api.url}")
+    private String apiUrl;
+
+    @Value("${gemini.rate-limit:10}")
+    private int rateLimit; // 10 requests per minute
+
+    @Value("${gemini.cache-duration-hours:24}")
+    private int cacheDurationHours;
 
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
+    // Rate limiting: Track requests per user
+    private final Map<Long, Queue<LocalDateTime>> userRequestTimestamps = new ConcurrentHashMap<>();
+
+    // Caching: Key = product signature, Value = {response, timestamp}
+    private final Map<String, CachedResponse> priceCache = new ConcurrentHashMap<>();
+
     public GeminiAIService() {
         this.restTemplate = new RestTemplate();
         this.objectMapper = new ObjectMapper();
     }
 
-    public PriceSuggestionResponse suggestPrice(PriceSuggestionRequest request) {
+    //Suggest price với rate limiting và caching
+    public PriceSuggestionResponse suggestPrice(PriceSuggestionRequest request, Long userId) {
+        // Check rate limit
+        if (!checkRateLimit(userId)) {
+            throw new RuntimeException("Rate limit exceeded. Maximum " + rateLimit + " requests per minute.");
+        }
+
+        // Check cache
+        String cacheKey = generateCacheKey(request);
+        CachedResponse cachedResponse = priceCache.get(cacheKey);
+
+        if (cachedResponse != null && !cachedResponse.isExpired(cacheDurationHours)) {
+            System.out.println("Returning cached price suggestion for: " + cacheKey);
+            return cachedResponse.getResponse();
+        }
+
         try {
             // Tạo prompt cho Gemini
             String prompt = buildPrompt(request);
@@ -40,7 +70,12 @@ public class GeminiAIService {
             String geminiResponse = callGeminiAPI(prompt);
 
             // Parse response và trích xuất giá
-            return parseGeminiResponse(geminiResponse, request);
+            PriceSuggestionResponse response = parseGeminiResponse(geminiResponse, request);
+
+            // Cache response
+            priceCache.put(cacheKey, new CachedResponse(response, LocalDateTime.now()));
+
+            return response;
 
         } catch (Exception e) {
             System.err.println("Error calling Gemini API: " + e.getMessage());
@@ -49,6 +84,40 @@ public class GeminiAIService {
             // Fallback: Trả về giá ước lượng dựa trên logic đơn giản
             return getFallbackPrice(request);
         }
+    }
+
+    //Check rate limit: Allow max {rateLimit} requests per minute per user
+    private boolean checkRateLimit(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime oneMinuteAgo = now.minusMinutes(1);
+
+        // Get user's request history
+        Queue<LocalDateTime> requests = userRequestTimestamps.computeIfAbsent(userId, k -> new LinkedList<>());
+
+        // Remove expired timestamps (older than 1 minute)
+        while (!requests.isEmpty() && requests.peek().isBefore(oneMinuteAgo)) {
+            requests.poll();
+        }
+
+        // Check if user exceeded rate limit
+        if (requests.size() >= rateLimit) {
+            return false;
+        }
+
+        // Add current request timestamp
+        requests.offer(now);
+        return true;
+    }
+
+    //Generate cache key dựa trên product attributes
+    private String generateCacheKey(PriceSuggestionRequest request) {
+        return String.format("%s_%s_%s_%d_%s",
+                request.getProductType(),
+                request.getBrand(),
+                request.getModel() != null ? request.getModel() : "NA",
+                request.getYear(),
+                request.getCondition()
+        ).toUpperCase();
     }
 
     private String buildPrompt(PriceSuggestionRequest request) {
@@ -92,7 +161,7 @@ public class GeminiAIService {
     }
 
     private String callGeminiAPI(String prompt) throws Exception {
-        String url = GEMINI_API_URL + "?key=" + apiKey;
+        String url = (apiUrl != null ? apiUrl : GEMINI_API_URL) + "?key=" + apiKey;
 
         // Tạo request body theo format của Gemini API
         Map<String, Object> requestBody = new HashMap<>();
@@ -224,5 +293,24 @@ public class GeminiAIService {
                         "Giá thực tế có thể thay đổi tùy theo tình trạng cụ thể của sản phẩm.";
         
         return new PriceSuggestionResponse(minPrice, maxPrice, suggestedPrice, insight);
+    }
+
+    //Inner class để lưu cached response
+    private static class CachedResponse {
+        private final PriceSuggestionResponse response;
+        private final LocalDateTime timestamp;
+
+        public CachedResponse(PriceSuggestionResponse response, LocalDateTime timestamp) {
+            this.response = response;
+            this.timestamp = timestamp;
+        }
+
+        public PriceSuggestionResponse getResponse() {
+            return response;
+        }
+
+        public boolean isExpired(int cacheDurationHours) {
+            return LocalDateTime.now().isAfter(timestamp.plusHours(cacheDurationHours));
+        }
     }
 }

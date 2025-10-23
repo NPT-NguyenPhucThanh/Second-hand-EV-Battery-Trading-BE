@@ -44,8 +44,8 @@ public class GuestController {
     @GetMapping("/products")
     public ResponseEntity<Map<String, Object>> getAllProducts(
             @RequestParam(required = false) String type, // "Car EV" hoặc "Battery"
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size) {
 
         List<Product> products = productService.getAllProducts();
 
@@ -61,12 +61,23 @@ public class GuestController {
                     .collect(Collectors.toList());
         }
 
-        // TODO: Implement pagination if needed
+        // Pagination: 10 sản phẩm/trang
+        int totalProducts = products.size();
+        int totalPages = (int) Math.ceil((double) totalProducts / size);
+        int start = page * size;
+        int end = Math.min(start + size, totalProducts);
+
+        List<Product> paginatedProducts = (start < totalProducts)
+            ? products.subList(start, end)
+            : List.of();
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("products", products);
-        response.put("totalProducts", products.size());
+        response.put("products", paginatedProducts);
+        response.put("currentPage", page);
+        response.put("pageSize", size);
+        response.put("totalProducts", totalProducts);
+        response.put("totalPages", totalPages);
 
         return ResponseEntity.ok(response);
     }
