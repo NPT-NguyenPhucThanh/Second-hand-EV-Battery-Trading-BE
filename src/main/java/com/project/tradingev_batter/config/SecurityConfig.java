@@ -45,13 +45,11 @@ public class SecurityConfig {
                         // === PUBLIC ENDPOINTS (GUEST) ===
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // === Guest API endpoints - không cần authentication ===
+                        // === PUBLIC API - Guest có thể xem products, sellers (không cần /api/guest) ===
+                        .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/sellers/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
 
-                        // === Guest có thể xem danh sách, tìm kiếm, chi tiết sản phẩm ===
-                        .requestMatchers(HttpMethod.GET, "/api/guest/products/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/guest/sellers/**").permitAll()
-                        
                         // === SWAGGER/OPENAPI ENDPOINTS ===
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
 
@@ -59,29 +57,36 @@ public class SecurityConfig {
                         .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
                         
                         // === DOCUSEAL WEBHOOK (MUST BE PUBLIC) ===
-                        .requestMatchers("/api/docuseal/webhook").permitAll() // DocuSeal callback
-                        .requestMatchers("/api/docuseal/**").permitAll()  // Public cho toàn bộ webhook
-                        .requestMatchers("/api/docuseal/webhook/test").permitAll()  //cụ thể cho /test
-                        
+                        .requestMatchers("/api/docuseal/webhook").permitAll()
+                        .requestMatchers("/api/docuseal/**").permitAll()
+
                         // === VNPAY CALLBACK (MUST BE PUBLIC) ===
                         .requestMatchers("/api/payment/vnpay-return").permitAll()
                         .requestMatchers("/api/payment/vnpay-ipn").permitAll()
                         .requestMatchers("/api/payment/mock-payment").permitAll()
 
-                        // === MANAGER ENDPOINTS ===
+                        // === MANAGER ENDPOINTS (Admin only - highest privilege) ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
                         
+                        // === STAFF ENDPOINTS (Operations - duyệt xe, kiểm định, kho, tranh chấp) ===
+                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "MANAGER")
+
                         // === SELLER ENDPOINTS ===
                         .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
                         
-                        // === CLIENT/BUYER ENDPOINTS ===
-                        .requestMatchers("/api/client/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
-                        .requestMatchers("/api/buyer/**").hasAnyRole("CLIENT", "SELLER", "MANAGER")
-                        
-                        // === CHAT ENDPOINTS ===
+                        // === BUYER ENDPOINTS (CLIENT đã được thay bằng BUYER) ===
+                        .requestMatchers("/api/buyer/**").hasAnyRole("BUYER", "SELLER", "MANAGER")
+
+                        // === CLIENT CONTROLLER - Dùng cho tất cả authenticated users ===
+                        .requestMatchers("/api/client/**").authenticated()
+
+                        // === CHAT ENDPOINTS - Tất cả authenticated users ===
                         .requestMatchers("/api/chat/**").authenticated()
                         
-                        // Tất cả các request khác cần authenticated
+                        // === NOTIFICATION ENDPOINTS ===
+                        .requestMatchers("/api/notifications/**").authenticated()
+
+                        // Tất cả các request khác yêu cầu authenticated
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

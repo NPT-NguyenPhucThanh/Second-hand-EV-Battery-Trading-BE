@@ -4,139 +4,101 @@ import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.PackageServiceRepository;
 import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.*;
-import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
 @RestController
 @RequestMapping("/api/manager")
-@Tag(name = "Manager APIs", description = "API dành cho quản trị viên - Duyệt sản phẩm, kiểm định, quản lý giao dịch, xử lý tranh chấp, quản lý người dùng")
+@Tag(name = "Manager APIs", description = "API dành cho quản trị viên cấp cao - Quản lý hệ thống, users, gói dịch vụ, doanh thu & báo cáo")
 public class ManagerController {
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
-    private final RefundService refundService;
+    private final UserService userService;
 
     public ManagerController(ManagerService managerService,
                              PackageServiceRepository packageServiceRepository,
-                             RefundService refundService) {
+                             UserService userService) {
         this.managerService = managerService;
         this.packageServiceRepository = packageServiceRepository;
-        this.refundService = refundService;
+        this.userService = userService;
     }
 
-    @Operation(summary = "Lấy danh sách thông báo cho quản lý")
-    @GetMapping("/notifications/{managerId}")
-    public ResponseEntity<List<Notification>> getNotifications(@PathVariable Long managerId) {
-        return ResponseEntity.ok(managerService.getNotiForManager(managerId));
-    }
+    // USER MANAGEMENT
 
-    @Operation(summary = "Duyệt sản phẩm (giai đoạn sơ bộ)")
-    @PostMapping("/products/{productId}/approve-preliminary")
-    public ResponseEntity<String> approvePreliminary(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
-        managerService.approvePreliminaryProduct(productId, request.getNote(), request.isApproved());
-        return ResponseEntity.ok("Processed");
-    }
+    @Operation(summary = "Lấy danh sách tất cả người dùng")
+    @GetMapping("/users")
+    public ResponseEntity<Map<String, Object>> getAllUsers() {
+        try {
+            List<User> users = userService.getAllUsers();
 
-    @Operation(summary = "Nhập kết quả kiểm định sản phẩm")
-    @PostMapping("/products/{productId}/input-inspection")
-    public ResponseEntity<String> inputInspection(@PathVariable Long productId, @Valid @RequestBody ApprovalRequest request) {
-        managerService.inputInspectionResult(productId, request.isApproved(), request.getNote());
-        return ResponseEntity.ok("Processed");
-    }
-
-    @Operation(summary = "Lấy danh sách sản phẩm trong kho")
-    @GetMapping("/warehouse")
-    public ResponseEntity<List<Product>> getWarehouse() {
-        return ResponseEntity.ok(managerService.getWarehouseProducts());
-    }
-
-    @Operation(summary = "Thêm sản phẩm vào kho")
-    @PostMapping("/warehouse/add/{productId}")
-    public ResponseEntity<String> addToWarehouse(@PathVariable Long productId) {
-        managerService.addToWarehouse(productId);
-        return ResponseEntity.ok("Added to warehouse");
-    }
-
-    @Operation(summary = "Duyệt đơn hàng")
-    @PostMapping("/orders/{orderId}/approve")
-    public ResponseEntity<String> approveOrder(@PathVariable Long orderId, @RequestBody ApprovalRequest request) {
-        managerService.approveOrder(orderId, request.isApproved(), request.getNote());
-        return ResponseEntity.ok("Order processed");
-    }
-
-    @Operation(summary = "Giải quyết tranh chấp")
-    @SuppressWarnings("unchecked")
-    @PostMapping("/disputes/{disputeId}/resolve")
-    public ResponseEntity<String> resolveDispute(@PathVariable Long disputeId, @RequestBody Map<String, Object> request) {
-        String resolution = (String) request.get("resolution");
-        Map<String, Object> refundMap = (Map<String, Object>) request.get("refund");  // Optional refund
-        RefundRequest refundRequest = null;
-        if (refundMap != null) {
-            refundRequest = new RefundRequest();
-            refundRequest.setAmount((Double) refundMap.get("amount"));
-            refundRequest.setReason((String) refundMap.get("reason"));
-            refundRequest.setStatus((String) refundMap.get("status"));
-        }
-        managerService.resolveDispute(disputeId, resolution, refundRequest);
-        return ResponseEntity.ok("Dispute resolved" + (refundRequest != null ? " with refund" : ""));
-    }
-
-    //Lấy danh sách yêu cầu nâng cấp
-    @Operation(summary = "Lấy danh sách yêu cầu nâng cấp của người bán")
-    @GetMapping("/seller-upgrade/requests")
-    public ResponseEntity<Map<String, Object>> getPendingSellerUpgradeRequests() {
-        List<User> pendingRequests = managerService.getPendingSellerUpgradeRequests();
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("totalRequests", pendingRequests.size());
-        response.put("requests", pendingRequests.stream().map(user -> Map.of(
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("totalUsers", users.size());
+            response.put("users", users.stream().map(user -> Map.of(
                 "userId", user.getUserid(),
                 "username", user.getUsername(),
                 "email", user.getEmail(),
+                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
                 "phone", user.getPhone() != null ? user.getPhone() : "N/A",
-                "requestDate", user.getSellerUpgradeRequestDate(),
-                "cccdFrontUrl", user.getCccdFrontUrl(),
-                "cccdBackUrl", user.getCccdBackUrl()
-        )).toList());
-        
-        return ResponseEntity.ok(response);
+                "isActive", user.isIsactive(),
+                "roles", user.getRoles().stream().map(Role::getRolename).toList()
+            )).toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải danh sách users: " + e.getMessage()
+            ));
+        }
     }
 
-    //Xét duyệt yêu cầu nâng cấp
-    @Operation(summary = "Xét duyệt yêu cầu nâng cấp của người bán")
-    @PostMapping("/seller-upgrade/{userId}/approve")
-    public ResponseEntity<Map<String, Object>> approveSellerUpgradeRequest(
-            @PathVariable Long userId, 
-            @RequestBody SellerUpgradeApprovalRequest request) {
-        
-        managerService.approveSellerUpgrade(userId, request.isApproved(), request.getRejectionReason());
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", request.isApproved() ? "Yêu cầu đã được chấp nhận" : "Yêu cầu đã bị từ chối");
-        
-        return ResponseEntity.ok(response);
+    @Operation(summary = "Lấy chi tiết thông tin người dùng")
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<Map<String, Object>> getUserDetail(@PathVariable Long userId) {
+        try {
+            User user = userService.getUserById(userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("user", Map.of(
+                "userId", user.getUserid(),
+                "username", user.getUsername(),
+                "email", user.getEmail(),
+                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
+                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                "isActive", user.isIsactive(),
+                "roles", user.getRoles().stream().map(Role::getRolename).toList(),
+                "createdAt", user.getCreated_at(),
+                "sellerUpgradeStatus", user.getSellerUpgradeStatus()
+            ));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body(Map.of(
+                "status", "error",
+                "message", "Không tìm thấy user: " + e.getMessage()
+            ));
+        }
     }
 
-    @Operation(summary = "Khóa hoặc mở khóa người dùng")
+    @Operation(summary = "Khóa hoặc mở khóa người dùng",
+               description = "Manager có thể khóa/mở khóa tài khoản người dùng")
     @PostMapping("/users/{userId}/lock")
     public ResponseEntity<String> lockUser(@PathVariable Long userId, @RequestBody LockRequest request) {
         managerService.lockUser(userId, request.isLock());
         return ResponseEntity.ok("User locked/unlocked");
     }
+
+    // PACKAGE SERVICE MANAGEMENT
 
     @Operation(summary = "Tạo gói dịch vụ mới")
     @PostMapping("/packages")
@@ -163,164 +125,24 @@ public class ManagerController {
         return ResponseEntity.ok("Deleted");
     }
 
-    @Operation(summary = "Lấy báo cáo doanh thu")
+    // REVENUE & REPORTS
+
+    @Operation(summary = "Lấy báo cáo doanh thu",
+               description = "Báo cáo tổng doanh thu từ xe, pin, gói dịch vụ, hoa hồng")
     @GetMapping("/reports/revenue")
     public ResponseEntity<Map<String, Object>> getRevenueReport() {
         return ResponseEntity.ok(managerService.getRevenueReport());
     }
 
-    @Operation(summary = "Lấy báo cáo hệ thống")
+    @Operation(summary = "Lấy báo cáo hệ thống",
+               description = "Báo cáo số lượng sản phẩm, đơn hàng, giao dịch, xu hướng thị trường")
     @GetMapping("/reports/system")
     public ResponseEntity<Map<String, Object>> getSystemReport() {
         return ResponseEntity.ok(managerService.getSystemReport());
     }
 
-    @Operation(summary = "Lấy danh sách sản phẩm trong kho đang chờ xử lý")
-    @GetMapping("/warehouse/pending")
-    public ResponseEntity<List<Product>> getPendingWarehouse() {
-        return ResponseEntity.ok(managerService.getPendingWarehouseProducts());
-    }
-
-    @Operation(summary = "Xóa sản phẩm khỏi kho")
-    @PostMapping("/warehouse/remove/{productId}")
-    public ResponseEntity<String> removeFromWarehouse(@PathVariable Long productId, @RequestBody Map<String, String> request) {
-        String reason = request.get("reason");
-        managerService.removeFromWarehouse(productId, reason);
-        return ResponseEntity.ok("Removed from warehouse");
-    }
-
-    @Operation(summary = "Cập nhật trạng thái sản phẩm trong kho")
-    @PutMapping("/warehouse/{productId}/status")
-    public ResponseEntity<String> updateWarehouseStatus(@PathVariable Long productId, @RequestParam String newStatus) {
-        managerService.updateWarehouseStatus(productId, newStatus);
-        return ResponseEntity.ok("Status updated to " + newStatus);
-    }
-
-    //Lấy tất cả refund requests
-    @Operation(summary = "Lấy tất cả các yêu cầu hoàn tiền")
-    @GetMapping("/refunds")
-    public ResponseEntity<Map<String, Object>> getAllRefunds() {
-        List<Refund> refunds = refundService.getAllRefunds();
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("totalRefunds", refunds.size());
-        response.put("refunds", refunds);
-
-        return ResponseEntity.ok(response);
-    }
-
-    //Lấy refund requests đang chờ xử lý (PENDING)
-    @Operation(summary = "Lấy các yêu cầu hoàn tiền đang chờ xử lý")
-    @GetMapping("/refunds/pending")
-    public ResponseEntity<Map<String, Object>> getPendingRefunds() {
-        List<Refund> refunds = refundService.getRefundsByStatus(com.project.tradingev_batter.enums.RefundStatus.PENDING);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("totalPending", refunds.size());
-        response.put("refunds", refunds);
-
-        return ResponseEntity.ok(response);
-    }
-
-    //Lấy chi tiết refund request
-    @Operation(summary = "Lấy chi tiết một yêu cầu hoàn tiền")
-    @GetMapping("/refunds/{refundId}")
-    public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
-        try {
-            Refund refund = refundService.getRefundById(refundId);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("refund", refund);
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-
-    //Manager xử lý refund request
-    @Operation(summary = "Quản lý xử lý yêu cầu hoàn tiền")
-    @PostMapping("/refunds/{refundId}/process")
-    public ResponseEntity<Map<String, Object>> processRefund(
-            @PathVariable Long refundId,
-            @RequestBody Map<String, Object> request) {
-
-        try {
-            // Lấy current manager
-            User manager = getCurrentUser();
-
-            boolean approve = (Boolean) request.get("approve");
-            String refundMethod = (String) request.getOrDefault("refundMethod", "VNPay");
-            String note = (String) request.getOrDefault("note", "");
-
-            // Validate refund method nếu approve
-            if (approve && refundMethod == null) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Vui lòng chọn phương thức hoàn tiền"
-                ));
-            }
-
-            Refund processedRefund = refundService.processRefund(
-                refundId,
-                manager.getUserid(),
-                refundMethod,
-                approve,
-                note
-            );
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", approve ? "Đã chấp nhận hoàn tiền" : "Đã từ chối yêu cầu hoàn tiền");
-            response.put("refund", processedRefund);
-
-            if (approve) {
-                response.put("refundAmount", processedRefund.getAmount());
-                response.put("refundMethod", processedRefund.getRefundMethod());
-                response.put("processedAt", processedRefund.getProcessedAt());
-            }
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
-
-    //Lấy refunds của một order cụ thể
-    @Operation(summary = "Lấy danh sách yêu cầu hoàn tiền của một đơn hàng")
-    @GetMapping("/refunds/order/{orderId}")
-    public ResponseEntity<Map<String, Object>> getRefundsByOrder(@PathVariable Long orderId) {
-        try {
-            List<Refund> refunds = refundService.getRefundsByOrder(orderId);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("orderId", orderId);
-            response.put("totalRefunds", refunds.size());
-            response.put("refunds", refunds);
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-
-    //Dashboard tổng quan cho Manager
-    //Hiển thị: pending tasks, recent activities, revenue, market trends
-    @Operation(summary = "Lấy thông tin tổng quan cho dashboard của quản lý")
+    @Operation(summary = "Lấy thông tin tổng quan cho dashboard của quản lý",
+               description = "Dashboard hiển thị: pending tasks, revenue summary, market trends, quick stats")
     @GetMapping("/dashboard/overview")
     public ResponseEntity<Map<String, Object>> getDashboardOverview() {
         try {

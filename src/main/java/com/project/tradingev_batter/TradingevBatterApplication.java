@@ -86,6 +86,15 @@ public class TradingevBatterApplication {
                     return roleRepository.save(role);
                 });
 
+        Role staffRole = roleRepository.findByRolename("STAFF")
+                .orElseGet(() -> {
+                    Role role = new Role();
+                    role.setRolename("STAFF");
+                    role.setJoindate(new Date());
+                    System.out.println("Created STAFF role");
+                    return roleRepository.save(role);
+                });
+
         Role managerRole = roleRepository.findByRolename("MANAGER")
                 .orElseGet(() -> {
                     Role role = new Role();
@@ -128,6 +137,22 @@ public class TradingevBatterApplication {
             System.out.println("Created SELLER user");
         }
         final User finalSeller = seller; // Make it final for lambda
+
+        User staff = userRepository.findByUsername("staff");
+        if (staff == null) {
+            staff = new User();
+            staff.setUsername("staff");
+            staff.setPassword(passwordEncoder.encode("staff123"));
+            staff.setEmail("staff@tradingev.com");
+            staff.setDisplayname("Nhân Viên Hệ Thống");
+            staff.setPhone("0934567890");
+            staff.setCreated_at(new Date());
+            staff.setIsactive(true);
+            staff.setRoles(Collections.singletonList(staffRole));
+            staff = userRepository.save(staff);
+            System.out.println("Created STAFF user");
+        }
+        final User finalStaff = staff; // Make it final for lambda
 
         User manager = userRepository.findByUsername("manager");
         if (manager == null) {
