@@ -160,28 +160,39 @@ public class BuyerController {
         return ResponseEntity.ok(response);
     }
 
-    //Mua sản phẩm trực tiếp (Mua ngay)
+    //Mua sản phẩm - Checkout (từ 1 product hoặc từ giỏ hàng)
     @Operation(
-            summary = "Mua sản phẩm trực tiếp (Mua ngay)",
-            description = "Tạo đơn hàng từ 1 sản phẩm cụ thể. Nếu là xe, cần đặt cọc 10%."
+            summary = "Checkout - Tạo đơn hàng",
+            description = "Tạo đơn hàng từ 1 sản phẩm (Mua ngay) hoặc từ giỏ hàng (nếu productId = null hoặc 0)"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Đặt hàng thành công - Trả về thông tin order và yêu cầu đặt cọc nếu là xe"),
-            @ApiResponse(responseCode = "400", description = "Sản phẩm không khả dụng")
+            @ApiResponse(responseCode = "200", description = "Đặt hàng thành công - Trả về thông tin order"),
+            @ApiResponse(responseCode = "400", description = "Sản phẩm không khả dụng hoặc giỏ hàng trống")
     })
-    @PostMapping("/orders/buy-now")
-    public ResponseEntity<Map<String, Object>> buyNow(@Valid @RequestBody CheckoutRequest request) {
+    @PostMapping("/checkout")
+    public ResponseEntity<Map<String, Object>> checkout(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
         
-        // Tạo đơn hàng trực tiếp từ 1 sản phẩm
-        Orders order = orderService.createOrderFromProduct(
-                buyer.getUserid(), 
-                request.getProductId(), 
-                request.getQuantity(),
-                request.getShippingAddress(),
-                request.getPaymentMethod()
-        );
-        
+        Orders order;
+
+        // Nếu có productId → Mua trực tiếp 1 sản phẩm
+        if (request.getProductId() != null && request.getProductId() > 0) {
+            order = orderService.createOrderFromProduct(
+                    buyer.getUserid(),
+                    request.getProductId(),
+                    request.getQuantity() != null ? request.getQuantity() : 1,
+                    request.getShippingAddress(),
+                    request.getPaymentMethod()
+            );
+        } else {
+            // Mua từ giỏ hàng
+            order = orderService.createOrderFromCart(
+                    buyer.getUserid(),
+                    request.getShippingAddress(),
+                    request.getPaymentMethod()
+            );
+        }
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Đặt hàng thành công");
@@ -194,33 +205,9 @@ public class BuyerController {
             response.put("requireDeposit", true);
             response.put("depositAmount", depositAmount);
             response.put("message", "Đơn hàng đã được tạo. Vui lòng thanh toán đặt cọc 10%");
-            response.put("nextStep", "Gọi API /api/payment/create-payment-url với transactionType=DEPOSIT");
+            response.put("nextStep", "Gọi API /api/buyer/orders/{orderId}/deposit để lưu thông tin giao dịch, sau đó thanh toán qua VNPay");
         }
-        
-        return ResponseEntity.ok(response);
-    }
 
-    //Mua từ giỏ hàng (Checkout)
-    @Operation(
-            summary = "Thanh toán từ giỏ hàng (Checkout)",
-            description = "Tạo đơn hàng từ tất cả sản phẩm trong giỏ hàng"
-    )
-    @PostMapping("/orders/checkout")
-    public ResponseEntity<Map<String, Object>> checkout(@Valid @RequestBody CheckoutRequest request) {
-        User buyer = getCurrentUser();
-        
-        Orders order = orderService.createOrderFromCart(
-                buyer.getUserid(),
-                request.getShippingAddress(),
-                request.getPaymentMethod()
-        );
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Đặt hàng thành công");
-        response.put("order", order);
-        response.put("orderId", order.getOrderid());
-        
         return ResponseEntity.ok(response);
     }
 

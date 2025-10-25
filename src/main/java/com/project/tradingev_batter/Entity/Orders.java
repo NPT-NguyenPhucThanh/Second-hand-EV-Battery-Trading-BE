@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.project.tradingev_batter.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -61,29 +62,35 @@ public class Orders {
     @Column(name = "change_plate")
     private Boolean changePlate = false; // Có đổi biển số không
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Contracts>  contracts = new ArrayList<>();
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Feedback> feedbacks = new ArrayList<>();
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "buyerid")
     private User users;
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Order_detail> details = new ArrayList<>();
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Transaction> transactions = new ArrayList<>();
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Refund> refunds = new ArrayList<>();
 
-    @OneToMany(mappedBy = "orders")
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Chatroom> chatroom = new ArrayList<>();
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "addressid")
     private Address address;
 }

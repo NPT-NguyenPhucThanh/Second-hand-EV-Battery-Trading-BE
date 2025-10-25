@@ -1,9 +1,6 @@
 package com.project.tradingev_batter.dto;
 
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,14 +11,11 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CheckoutRequest {
-    @NotNull(message = "Product ID không được để trống")
-    private Long productId; // Cho mua ngay
+    private Long productId; // Cho mua ngay (optional - nếu null thì checkout from cart)
 
-    @Positive(message = "Số lượng phải lớn hơn 0")
-    private Integer quantity; // Cho mua ngay
+    private Integer quantity; // Cho mua ngay (optional)
 
-    @NotBlank(message = "Địa chỉ giao hàng không được để trống")
-    private String shippingAddress;
+    private String shippingAddress; // Địa chỉ giao hàng (cho pin)
 
     @NotBlank(message = "Phương thức thanh toán không được để trống")
     private String paymentMethod; // "VnPay", "COD", "Banking"
@@ -30,8 +24,7 @@ public class CheckoutRequest {
     private String transactionLocation; // Địa điểm gặp mặt để giao dịch xe
 
     // Thời gian hẹn giao dịch (bắt buộc cho xe)
-    @Future(message = "Thời gian hẹn phải là thời điểm trong tương lai")
-    private Date appointmentDate; // Ngày giờ hẹn giao dịch
+    private Date appointmentDate; // Ngày giờ hẹn giao dịch (validate ở controller)
 
     // Có muốn sang tên xe không
     private Boolean transferOwnership = false;

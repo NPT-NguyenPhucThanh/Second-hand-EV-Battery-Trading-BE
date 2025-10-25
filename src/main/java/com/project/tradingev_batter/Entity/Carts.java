@@ -26,10 +26,10 @@ public class Carts {
     @Column(name = "updatedat")
     private Date updatedat;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "userid")
     private User users;
 
-    @OneToMany(mappedBy = "carts")
+    @OneToMany(mappedBy = "carts", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     private List<cart_items>  cart_items = new ArrayList<>();
 }

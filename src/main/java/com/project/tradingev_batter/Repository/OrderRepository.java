@@ -15,8 +15,10 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
     double getTotalSales();
     @Query("SELECT FUNCTION('MONTH', o.createdat), COUNT(o) FROM Orders o GROUP BY FUNCTION('MONTH', o.createdat)")
     List<Object[]> getOrdersByMonth();
+
+    // KHÔNG DÙNG @EntityGraph vì Hibernate không thể fetch multiple bags cùng lúc
+    // Thay vào đó dùng @Query với LEFT JOIN FETCH nếu cần eager load
     List<Orders> findByUsersUserid(long userid);
 
-    // Tìm orders theo user và status (seeds)
     List<Orders> findByUsersAndStatus(User user, OrderStatus status);
 }

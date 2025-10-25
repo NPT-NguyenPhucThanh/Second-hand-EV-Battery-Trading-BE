@@ -8,6 +8,7 @@ import com.project.tradingev_batter.Repository.CartItemRepository;
 import com.project.tradingev_batter.Repository.CartsRepository;
 import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
+import com.project.tradingev_batter.enums.ProductStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +43,14 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         // Kiểm tra sản phẩm có đang bán không
-        if (!"DANG_BAN".equals(product.getStatus()) && !"DA_DUYET".equals(product.getStatus())) {
-            throw new RuntimeException("Sản phẩm không khả dụng để mua");
+        // Chỉ cho phép thêm vào giỏ nếu product status là DANG_BAN
+        if (!ProductStatus.DANG_BAN.equals(product.getStatus())) {
+            throw new RuntimeException("Sản phẩm không khả dụng để mua. Status hiện tại: " + product.getStatus());
+        }
+
+        // Kiểm tra còn hàng không (cho pin)
+        if ("Battery".equals(product.getType()) && product.getAmount() < quantity) {
+            throw new RuntimeException("Sản phẩm không đủ số lượng. Còn lại: " + product.getAmount());
         }
         
         // Lấy hoặc tạo cart
@@ -63,7 +70,14 @@ public class CartServiceImpl implements CartService {
         if (existingItem.isPresent()) {
             // Cập nhật số lượng
             cart_items item = existingItem.get();
-            item.setQuantity(item.getQuantity() + quantity);
+            int newQuantity = item.getQuantity() + quantity;
+
+            // Check lại số lượng nếu là battery
+            if ("Battery".equals(product.getType()) && product.getAmount() < newQuantity) {
+                throw new RuntimeException("Sản phẩm không đủ số lượng. Còn lại: " + product.getAmount());
+            }
+
+            item.setQuantity(newQuantity);
             return cartItemRepository.save(item);
         } else {
             // Thêm mới

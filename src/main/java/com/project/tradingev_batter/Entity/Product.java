@@ -1,5 +1,7 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.project.tradingev_batter.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -15,6 +17,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "cart_item", "order_detail", "posts"})
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,28 +63,34 @@ public class Product {
     @Column(name = "view_count")
     private Integer viewCount = 0; // Đếm lượt xem sản phẩm
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "userid")
+    @JsonIgnoreProperties({"roles", "products", "password", "identityCard", "vehicleRegistration", "isActive", "upgradeStatus", "upgradeRequestedAt"})
     private User users;
 
-    @OneToMany(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<product_img> imgs = new ArrayList<>();
 
-    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Brandcars brandcars;
 
-    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Brandbattery  brandbattery;
 
-    @OneToMany(mappedBy = "products")
+    @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<cart_items> cart_item = new ArrayList<>();
 
-    @OneToMany(mappedBy = "products")
+    @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"products", "users"})
     private List<Feedback> feedbacks = new ArrayList<>();
 
-    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private Post posts;
 
-    @OneToMany(mappedBy = "products")
+    @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Order_detail> order_detail = new ArrayList<>();
 }

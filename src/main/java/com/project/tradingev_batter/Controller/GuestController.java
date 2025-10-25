@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.Feedback;
 import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.product_img;
 import com.project.tradingev_batter.Service.PackageServiceService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.transaction.Transactional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,6 +58,7 @@ public class GuestController {
             @ApiResponse(responseCode = "500", description = "Lỗi server")
     })
     @GetMapping("/products")
+    @Transactional
     public ResponseEntity<Map<String, Object>> getAllProducts(
             @Parameter(description = "Loại sản phẩm: 'Car EV' hoặc 'Battery'")
             @RequestParam(required = false) String type,
@@ -88,9 +91,14 @@ public class GuestController {
             ? products.subList(start, end)
             : List.of();
 
+        // Convert to DTO to avoid lazy loading issues
+        List<Map<String, Object>> productDTOs = paginatedProducts.stream()
+                .map(this::convertProductToDTO)
+                .collect(Collectors.toList());
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("products", paginatedProducts);
+        response.put("products", productDTOs);
         response.put("currentPage", page);
         response.put("pageSize", size);
         response.put("totalProducts", totalProducts);
@@ -99,7 +107,58 @@ public class GuestController {
         return ResponseEntity.ok(response);
     }
 
-    //FE-02: Tìm kiếm và lọc sản phẩm theo nhiều tiêu chí
+    // Helper method để convert Product thành DTO
+    private Map<String, Object> convertProductToDTO(Product product) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("productid", product.getProductid());
+        dto.put("productname", product.getProductname());
+        dto.put("description", product.getDescription());
+        dto.put("cost", product.getCost());
+        dto.put("status", product.getStatus().toString());
+        dto.put("type", product.getType());
+        dto.put("model", product.getModel());
+        dto.put("viewCount", product.getViewCount());
+        dto.put("inWarehouse", product.getInWarehouse());
+
+        // Add images
+        if (product.getImgs() != null && !product.getImgs().isEmpty()) {
+            List<String> imageUrls = product.getImgs().stream()
+                    .map(product_img::getUrl)
+                    .collect(Collectors.toList());
+            dto.put("images", imageUrls);
+        } else {
+            dto.put("images", List.of());
+        }
+
+        // Add brand info
+        if ("Car EV".equals(product.getType()) && product.getBrandcars() != null) {
+            Map<String, Object> brandInfo = new HashMap<>();
+            brandInfo.put("brand", product.getBrandcars().getBrand());
+            brandInfo.put("year", product.getBrandcars().getYear());
+            brandInfo.put("licensePlate", product.getBrandcars().getLicensePlate());
+            dto.put("brandInfo", brandInfo);
+        } else if ("Battery".equals(product.getType()) && product.getBrandbattery() != null) {
+            Map<String, Object> brandInfo = new HashMap<>();
+            brandInfo.put("brand", product.getBrandbattery().getBrand());
+            brandInfo.put("capacity", product.getBrandbattery().getCapacity());
+            brandInfo.put("condition", product.getBrandbattery().getCondition());
+            dto.put("brandInfo", brandInfo);
+        }
+
+        // Add seller basic info
+        if (product.getUsers() != null) {
+            Map<String, Object> sellerInfo = new HashMap<>();
+            sellerInfo.put("sellerId", product.getUsers().getUserid());
+            sellerInfo.put("username", product.getUsers().getUsername());
+            sellerInfo.put("displayName", product.getUsers().getDisplayname() != null ?
+                    product.getUsers().getDisplayname() : product.getUsers().getUsername());
+            dto.put("seller", sellerInfo);
+        }
+
+        return dto;
+    }
+
+    // Tìm kiếm và lọc sản phẩm theo nhiều tiêu chí
     //Query params: brand, year, minPrice, maxPrice, condition, type
     @Operation(
             summary = "Tìm kiếm và lọc sản phẩm",
@@ -110,6 +169,7 @@ public class GuestController {
             @ApiResponse(responseCode = "500", description = "Lỗi server")
     })
     @GetMapping("/products/search")
+    @Transactional
     public ResponseEntity<Map<String, Object>> searchProducts(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String brand,
@@ -195,22 +255,34 @@ public class GuestController {
                     .collect(Collectors.toList());
         }
 
+        // Convert to DTO
+        List<Map<String, Object>> productDTOs = products.stream()
+                .map(this::convertProductToDTO)
+                .collect(Collectors.toList());
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("products", products);
-        response.put("totalResults", products.size());
-        response.put("filters", Map.of(
-                "keyword", keyword != null ? keyword : "",
-                "brand", brand != null ? brand : "",
-                "type", type != null ? type : "",
-                "priceRange", (minPrice != null || maxPrice != null) ?
-                        Map.of("min", minPrice != null ? minPrice : 0, "max", maxPrice != null ? maxPrice : 0) : null
-        ));
+        response.put("products", productDTOs);
+        response.put("totalResults", productDTOs.size());
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("keyword", keyword != null ? keyword : "");
+        filters.put("brand", brand != null ? brand : "");
+        filters.put("type", type != null ? type : "");
+
+        if (minPrice != null || maxPrice != null) {
+            Map<String, Object> priceRange = new HashMap<>();
+            priceRange.put("min", minPrice != null ? minPrice : 0);
+            priceRange.put("max", maxPrice != null ? maxPrice : 0);
+            filters.put("priceRange", priceRange);
+        }
+
+        response.put("filters", filters);
 
         return ResponseEntity.ok(response);
     }
 
-    //FE-03: Xem chi tiết sản phẩm
+    //Xem chi tiết sản phẩm
     //Tự động tăng viewCount khi xem chi tiết
     @Operation(
             summary = "Xem chi tiết sản phẩm",
@@ -222,6 +294,7 @@ public class GuestController {
             @ApiResponse(responseCode = "500", description = "Lỗi server")
     })
     @GetMapping("/products/{productId}")
+    @Transactional
     public ResponseEntity<Map<String, Object>> getProductDetail(@PathVariable Long productId) {
         try {
             Product product = productService.getProductById(productId);
@@ -230,15 +303,17 @@ public class GuestController {
             product.setViewCount(product.getViewCount() + 1);
             productService.updateProduct(productId, product);
 
+            // Convert to DTO
+            Map<String, Object> productDTO = convertProductToDTO(product);
+
             // Lấy thông tin seller
             User seller = product.getUsers();
-            Map<String, Object> sellerInfo = Map.of(
-                    "sellerId", seller.getUserid(),
-                    "username", seller.getUsername(),
-                    "displayName", seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername(),
-                    "email", seller.getEmail(),
-                    "phone", seller.getPhone() != null ? seller.getPhone() : "N/A"
-            );
+            Map<String, Object> sellerInfo = new HashMap<>();
+            sellerInfo.put("sellerId", seller.getUserid());
+            sellerInfo.put("username", seller.getUsername());
+            sellerInfo.put("displayName", seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername());
+            sellerInfo.put("email", seller.getEmail());
+            sellerInfo.put("phone", seller.getPhone() != null ? seller.getPhone() : "N/A");
 
             // Lấy feedbacks/ratings
             List<Map<String, Object>> feedbacks = product.getFeedbacks().stream()
@@ -247,6 +322,14 @@ public class GuestController {
                         fb.put("rating", f.getRating());
                         fb.put("comment", f.getComment() != null ? f.getComment() : "");
                         fb.put("createdAt", f.getCreated_at());
+                        // Add buyer info
+                        if (f.getUsers() != null) {
+                            Map<String, Object> buyerInfo = new HashMap<>();
+                            buyerInfo.put("buyerId", f.getUsers().getUserid());
+                            buyerInfo.put("buyerName", f.getUsers().getDisplayname() != null ?
+                                    f.getUsers().getDisplayname() : f.getUsers().getUsername());
+                            fb.put("buyer", buyerInfo);
+                        }
                         return fb;
                     })
                     .collect(Collectors.toList());
@@ -259,7 +342,7 @@ public class GuestController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("product", product);
+            response.put("product", productDTO);
             response.put("seller", sellerInfo);
             response.put("feedbacks", feedbacks);
             response.put("averageRating", Math.round(avgRating * 10.0) / 10.0);
@@ -287,6 +370,7 @@ public class GuestController {
             @ApiResponse(responseCode = "500", description = "Lỗi server")
     })
     @GetMapping("/sellers/{sellerId}")
+    @Transactional
     public ResponseEntity<Map<String, Object>> getSellerInfo(@PathVariable Long sellerId) {
         try {
             User seller = userService.getUserById(sellerId);
@@ -319,10 +403,15 @@ public class GuestController {
             sellerInfo.put("totalReviews", totalReviews);
             sellerInfo.put("totalProducts", sellerProducts.size());
 
+            // Convert products to DTO
+            List<Map<String, Object>> productDTOs = sellerProducts.stream()
+                    .map(this::convertProductToDTO)
+                    .collect(Collectors.toList());
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("seller", sellerInfo);
-            response.put("products", sellerProducts);
+            response.put("products", productDTOs);
 
             return ResponseEntity.ok(response);
 
@@ -334,7 +423,7 @@ public class GuestController {
         }
     }
 
-    //FE-06: Endpoint để kiểm tra xem action có yêu cầu đăng nhập không
+    //Endpoint để kiểm tra xem action có yêu cầu đăng nhập không
     //FE gọi API này trước khi thực hiện action mua hoặc chat
     @Operation(
             summary = "Kiểm tra yêu cầu đăng nhập",

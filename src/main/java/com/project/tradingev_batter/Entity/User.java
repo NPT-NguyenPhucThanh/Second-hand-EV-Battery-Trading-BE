@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,6 +15,10 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "roles", "addresses", "products",
+    "notifications", "carts", "cart_items", "buyerContracts", "sellerContracts", "feedbacks", "posts",
+    "userReviewed", "orders", "transactions", "chatroomBuyer", "chatroomSeller", "contracts", "comments",
+    "favorite_posts", "buyer", "seller"})
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
