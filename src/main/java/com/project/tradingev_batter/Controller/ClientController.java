@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Service.ClientService;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -116,37 +117,51 @@ public class ClientController {
         }
     }
 
-    //Gửi yêu cầu nâng cấp từ Client lên Seller
-    @Operation(summary = "Gửi yêu cầu nâng cấp lên Seller", description = "Gửi yêu cầu nâng cấp tài khoản từ Client lên Seller kèm theo tài liệu cần thiết")
+    //Gửi yêu cầu nâng cấp từ Buyer lên Seller
+    @Operation(
+            summary = "Gửi yêu cầu nâng cấp lên Seller",
+            description = "Buyer gửi yêu cầu nâng cấp tài khoản lên Seller bằng cách upload ảnh CCCD (mặt trước + mặt sau)"
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Thành công - Yêu cầu nâng cấp đã được gửi"),
-            @ApiResponse(responseCode = "400", description = "Lỗi dữ liệu đầu vào"),
+            @ApiResponse(responseCode = "200", description = "Yêu cầu đã được gửi thành công, chờ Staff duyệt"),
+            @ApiResponse(responseCode = "400", description = "File không hợp lệ (phải jpg/png/pdf, < 5MB)"),
             @ApiResponse(responseCode = "401", description = "Chưa đăng nhập"),
-            @ApiResponse(responseCode = "500", description = "Lỗi server")
+            @ApiResponse(responseCode = "500", description = "Lỗi upload file hoặc lỗi server")
     })
-    @PostMapping(value = "/seller-upgrade/request", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/request-seller-upgrade", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> requestSellerUpgrade(
+            @Parameter(description = "Ảnh CCCD mặt trước (jpg/png/pdf, < 5MB)", required = true)
             @RequestParam("cccdFront") MultipartFile cccdFront,
-            @RequestParam("cccdBack") MultipartFile cccdBack,
-            @RequestParam(value = "vehicleRegistration", required = false) MultipartFile vehicleRegistration) {
-        
+            @Parameter(description = "Ảnh CCCD mặt sau (jpg/png/pdf, < 5MB)", required = true)
+            @RequestParam("cccdBack") MultipartFile cccdBack) {
+
         User user = getCurrentUser();
         
         try {
+            // Validate file upload
+            validateImageFile(cccdFront, "CCCD mặt trước");
+            validateImageFile(cccdBack, "CCCD mặt sau");
+
+            // Call service (không cần vehicleRegistration nữa)
             User updatedUser = clientService.requestSellerUpgrade(
                     user.getUserid(), 
                     cccdFront, 
-                    cccdBack, 
-                    vehicleRegistration
+                    cccdBack,
+                    null // vehicleRegistration không còn bắt buộc
             );
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Yêu cầu nâng cấp đã được gửi. Vui lòng chờ manager xét duyệt.");
+            response.put("message", "Yêu cầu nâng cấp đã được gửi thành công. Vui lòng chờ Staff xét duyệt.");
             response.put("upgradeStatus", updatedUser.getSellerUpgradeStatus());
             response.put("requestDate", updatedUser.getSellerUpgradeRequestDate());
             
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
@@ -234,6 +249,32 @@ public class ClientController {
 
     // =============== HELPER METHODS ==================================================================================
     
+    /**
+     * Validate file upload:
+     * - Max size: 5MB
+     * - Allowed types: jpg, jpeg, png, pdf
+     */
+    private void validateImageFile(MultipartFile file, String fieldName) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " không được để trống");
+        }
+
+        // Check file size (5MB max)
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new IllegalArgumentException(fieldName + " phải nhỏ hơn 5MB");
+        }
+
+        // Check file type
+        String contentType = file.getContentType();
+        if (contentType == null ||
+            (!contentType.equals("image/jpeg") &&
+             !contentType.equals("image/jpg") &&
+             !contentType.equals("image/png") &&
+             !contentType.equals("application/pdf"))) {
+            throw new IllegalArgumentException(fieldName + " chỉ chấp nhận định dạng: jpg, jpeg, png, pdf");
+        }
+    }
+
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails userDetails)) {

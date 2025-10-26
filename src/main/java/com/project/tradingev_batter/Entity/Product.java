@@ -83,7 +83,7 @@ public class Product {
     private List<cart_items> cart_item = new ArrayList<>();
 
     @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
-    @JsonIgnoreProperties({"products", "users"})
+    @JsonIgnore
     private List<Feedback> feedbacks = new ArrayList<>();
 
     @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

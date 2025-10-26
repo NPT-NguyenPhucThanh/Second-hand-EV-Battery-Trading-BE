@@ -415,7 +415,7 @@ public class TradingevBatterApplication {
         }
 
         // ============= SEED ORDERS (Check if already exists) =============
-        if (orderRepository.findByUsersAndStatus(finalBuyer, OrderStatus.DA_HOAN_TAT).isEmpty()) {
+        if (orderRepository.findByUsersAndStatus(finalBuyer.getUserid(), OrderStatus.DA_HOAN_TAT).isEmpty()) {
             Orders completedOrder = new Orders();
             completedOrder.setTotalamount(50000000.0);
             completedOrder.setShippingfee(30000.0);

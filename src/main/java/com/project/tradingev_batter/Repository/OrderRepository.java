@@ -16,9 +16,16 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
     @Query("SELECT FUNCTION('MONTH', o.createdat), COUNT(o) FROM Orders o GROUP BY FUNCTION('MONTH', o.createdat)")
     List<Object[]> getOrdersByMonth();
 
-    // KHÔNG DÙNG @EntityGraph vì Hibernate không thể fetch multiple bags cùng lúc
-    // Thay vào đó dùng @Query với LEFT JOIN FETCH nếu cần eager load
+    // Query với LEFT JOIN FETCH để tránh LazyInitializationException
+    @Query("SELECT DISTINCT o FROM Orders o " +
+           "LEFT JOIN FETCH o.details " +
+           "WHERE o.users.userid = :userid " +
+           "ORDER BY o.createdat DESC")
     List<Orders> findByUsersUserid(long userid);
 
-    List<Orders> findByUsersAndStatus(User user, OrderStatus status);
+    @Query("SELECT DISTINCT o FROM Orders o " +
+           "LEFT JOIN FETCH o.details " +
+           "WHERE o.users.userid = :userid " +
+           "AND o.status = :status")
+    List<Orders> findByUsersAndStatus(long userid, OrderStatus status);
 }

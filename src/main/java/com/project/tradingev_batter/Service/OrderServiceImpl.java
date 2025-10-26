@@ -38,11 +38,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Orders> getOrders(long userid) {
         return orderRepository.findByUsersUserid(userid);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Order_detail> getOrderDetails(long orderId, long userid) throws Exception {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new Exception("Order not found with ID: " + orderId));
@@ -54,6 +56,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Orders getOrderById(Long orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));

@@ -43,8 +43,9 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         
         // Kiểm tra sản phẩm có đang bán không
-        // Chỉ cho phép thêm vào giỏ nếu product status là DANG_BAN
-        if (!ProductStatus.DANG_BAN.equals(product.getStatus())) {
+        // Chỉ cho phép thêm vào giỏ nếu product status là DANG_BAN hoặc DA_DUYET
+        if (!ProductStatus.DANG_BAN.equals(product.getStatus()) &&
+            !ProductStatus.DA_DUYET.equals(product.getStatus())) {
             throw new RuntimeException("Sản phẩm không khả dụng để mua. Status hiện tại: " + product.getStatus());
         }
 
@@ -92,6 +93,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Carts getCart(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -105,6 +107,9 @@ public class CartServiceImpl implements CartService {
             cart = cartsRepository.save(cart);
         }
         
+        // Force initialize lazy collections
+        cart.getCart_items().size();
+
         return cart;
     }
 
@@ -142,6 +147,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public double calculateCartTotal(Long userId) {
         Carts cart = getCart(userId);
         

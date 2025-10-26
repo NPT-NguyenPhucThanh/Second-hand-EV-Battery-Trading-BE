@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.dto;
 
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,11 +21,12 @@ public class CheckoutRequest {
     @NotBlank(message = "Phương thức thanh toán không được để trống")
     private String paymentMethod; // "VnPay", "COD", "Banking"
 
-    // Điểm giao dịch (bắt buộc cho xe)
+    // Điểm giao dịch (optional - chỉ cần khi deposit xe)
     private String transactionLocation; // Địa điểm gặp mặt để giao dịch xe
 
-    // Thời gian hẹn giao dịch (bắt buộc cho xe)
-    private Date appointmentDate; // Ngày giờ hẹn giao dịch (validate ở controller)
+    // Thời gian hẹn giao dịch (optional - chỉ cần khi deposit xe)
+    // Validation @Future sẽ được check trong API /orders/{id}/deposit
+    private Date appointmentDate; // Ngày giờ hẹn giao dịch
 
     // Có muốn sang tên xe không
     private Boolean transferOwnership = false;
