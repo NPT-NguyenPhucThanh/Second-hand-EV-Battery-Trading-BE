@@ -12,7 +12,7 @@ public class FeedbackRequest {
     @NotNull(message = "Order ID không được để trống")
     private Long orderId;
 
-    @NotNull(message = "Product ID không được để trống")
+    // productId là optional - nếu không có, system sẽ tự động lấy từ order details
     private Long productId;
 
     @Min(value = 1, message = "Rating phải từ 1-5")

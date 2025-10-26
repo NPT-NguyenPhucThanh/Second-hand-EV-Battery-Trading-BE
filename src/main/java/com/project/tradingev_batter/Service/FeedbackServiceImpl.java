@@ -2,11 +2,13 @@ package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.Feedback;
 import com.project.tradingev_batter.Entity.Notification;
+import com.project.tradingev_batter.Entity.Order_detail;
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Repository.FeedbackRepository;
 import com.project.tradingev_batter.Repository.NotificationRepository;
+import com.project.tradingev_batter.Repository.OrderDetailRepository;
 import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
@@ -22,17 +24,20 @@ public class FeedbackServiceImpl implements FeedbackService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    private final OrderDetailRepository orderDetailRepository;
     private final NotificationRepository notificationRepository;
 
     public FeedbackServiceImpl(FeedbackRepository feedbackRepository, 
                               ProductRepository productRepository,
                               UserRepository userRepository,
                               OrderRepository orderRepository,
+                              OrderDetailRepository orderDetailRepository,
                               NotificationRepository notificationRepository) {
         this.feedbackRepository = feedbackRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
+        this.orderDetailRepository = orderDetailRepository;
         this.notificationRepository = notificationRepository;
     }
 
@@ -95,9 +100,6 @@ public class FeedbackServiceImpl implements FeedbackService {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        
         // Kiểm tra quyền sở hữu đơn hàng
         if (order.getUsers().getUserid() != buyerId) {
             throw new RuntimeException("Bạn không có quyền đánh giá đơn hàng này");
@@ -108,12 +110,24 @@ public class FeedbackServiceImpl implements FeedbackService {
             throw new RuntimeException("Chỉ có thể đánh giá sau khi đơn hàng hoàn tất");
         }
         
+        // Nếu productId null, tự động lấy từ order details (lấy product đầu tiên)
+        if (productId == null) {
+            List<Order_detail> details = orderDetailRepository.findByOrders(order);
+            if (details.isEmpty()) {
+                throw new RuntimeException("Đơn hàng không có sản phẩm để đánh giá");
+            }
+            productId = details.get(0).getProducts().getProductid();
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
         // Kiểm tra đã đánh giá chưa
         List<Feedback> existingFeedbacks = feedbackRepository.findByProducts_Productid(productId);
         boolean alreadyReviewed = existingFeedbacks.stream()
-                .anyMatch(f -> f.getUsers().getUserid() == buyerId &&
-                              f.getOrders().getOrderid() == orderId);
-        
+                .anyMatch(f -> f.getUsers() != null && f.getUsers().getUserid() == buyerId &&
+                              f.getOrders() != null && f.getOrders().getOrderid() == orderId);
+
         if (alreadyReviewed) {
             throw new RuntimeException("Bạn đã đánh giá sản phẩm này rồi");
         }
