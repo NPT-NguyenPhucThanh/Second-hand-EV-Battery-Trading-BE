@@ -8,7 +8,6 @@ import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -66,36 +65,59 @@ public class SellerController {
 
         User seller = getCurrentUser();
         
-        // Tạo order mua gói (chưa active)
-        Map<String, Object> purchaseResult = sellerService.createPackagePurchaseOrder(
-                seller.getUserid(), 
-                request.getPackageId()
-        );
-        
-        Long orderId = (Long) purchaseResult.get("orderId");
-        Double packagePrice = (Double) purchaseResult.get("packagePrice");
-        String packageName = (String) purchaseResult.get("packageName");
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Đơn hàng mua gói đã được tạo. Vui lòng thanh toán.");
-        response.put("orderId", orderId);
-        response.put("packageName", packageName);
-        response.put("packagePrice", packagePrice);
-        response.put("nextStep", Map.of(
-                "endpoint", "/api/payment/create-payment-url",
-                "method", "POST",
-                "params", Map.of(
-                        "orderId", orderId,
-                        "transactionType", "PACKAGE_PURCHASE"
-                ),
-                "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect seller sang VNPay"
-        ));
-        
-        return ResponseEntity.ok(response);
+        try {
+            // Tạo order mua gói (chưa active)
+            Map<String, Object> purchaseResult = sellerService.createPackagePurchaseOrder(
+                    seller.getUserid(),
+                    request.getPackageId()
+            );
+
+            Long orderId = (Long) purchaseResult.get("orderId");
+            Double packagePrice = (Double) purchaseResult.get("packagePrice");
+            String packageName = (String) purchaseResult.get("packageName");
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đơn hàng mua gói đã được tạo. Vui lòng thanh toán.");
+            response.put("orderId", orderId);
+            response.put("packageName", packageName);
+            response.put("packagePrice", packagePrice);
+            response.put("nextStep", Map.of(
+                    "endpoint", "/api/payment/create-payment-url",
+                    "method", "POST",
+                    "params", Map.of(
+                            "orderId", orderId,
+                            "transactionType", "PACKAGE_PURCHASE"
+                    ),
+                    "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect seller sang VNPay"
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            // Handle business logic errors
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+
+            // Check if it's a duplicate package error
+            if (e.getMessage().contains("đang hoạt động")) {
+                errorResponse.put("suggestion", "Bạn có thể sử dụng API /api/seller/packages/current để xem chi tiết gói hiện tại");
+            }
+
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 
     //Theo dõi hạn sử dụng và số lượt đăng còn lại trong gói
+    @Operation(
+            summary = "Xem gói dịch vụ hiện tại",
+            description = "Lấy thông tin gói CAR và gói BATTERY đang sử dụng (nếu có)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin gói"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/packages/current")
     public ResponseEntity<Map<String, Object>> getCurrentPackage() {
         User seller = getCurrentUser();
@@ -142,6 +164,14 @@ public class SellerController {
     }
 
     // Endpoint riêng để lấy thông tin gói XE
+    @Operation(
+            summary = "Xem gói CAR hiện tại",
+            description = "Lấy thông tin chi tiết gói đăng xe đang sử dụng"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "404", description = "Chưa có gói CAR")
+    })
     @GetMapping("/packages/car")
     public ResponseEntity<Map<String, Object>> getCarPackage() {
         User seller = getCurrentUser();
@@ -168,6 +198,14 @@ public class SellerController {
     }
 
     // Endpoint riêng để lấy thông tin gói PIN
+    @Operation(
+            summary = "Xem gói BATTERY hiện tại",
+            description = "Lấy thông tin chi tiết gói đăng pin đang sử dụng"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "404", description = "Chưa có gói BATTERY")
+    })
     @GetMapping("/packages/battery")
     public ResponseEntity<Map<String, Object>> getBatteryPackage() {
         User seller = getCurrentUser();
@@ -194,6 +232,15 @@ public class SellerController {
     }
 
     //Đăng xe - Cung cấp đầy đủ thông tin xe, hình ảnh, biển số, thông số, tình trạng, giá
+    @Operation(
+            summary = "Đăng bán xe",
+            description = "Seller đăng bán xe (cần có gói CAR còn hiệu lực). Xe sẽ đi qua quy trình kiểm định."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đăng xe thành công - Chờ kiểm định"),
+            @ApiResponse(responseCode = "400", description = "Hết lượt đăng hoặc gói đã hết hạn"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping(value = "/products/cars", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> createCarProduct(
             @RequestParam("productname") String productname,
@@ -229,6 +276,14 @@ public class SellerController {
     }
 
     //Quản lý trạng thái đăng xe
+    @Operation(
+            summary = "Xem trạng thái đăng xe",
+            description = "Lấy danh sách xe đã đăng và trạng thái hiện tại (CHO_DUYET, CHO_KIEM_DUYET, DANG_BAN, ...)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/products/cars/status")
     public ResponseEntity<Map<String, Object>> getCarProductsStatus() {
         User seller = getCurrentUser();
@@ -249,6 +304,15 @@ public class SellerController {
     }
 
     //Gia hạn gói để tiếp tục hiển thị xe nếu sắp hết hạn
+    @Operation(
+            summary = "Gia hạn gói dịch vụ",
+            description = "Gia hạn gói CAR hoặc BATTERY khi sắp hết hạn"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Gia hạn thành công"),
+            @ApiResponse(responseCode = "400", description = "Gói không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping("/packages/renew")
     public ResponseEntity<Map<String, Object>> renewPackage(
             @RequestBody PackagePurchaseRequest request) {
@@ -265,6 +329,15 @@ public class SellerController {
     }
 
     //Đăng bán pin - Cung cấp thông tin cơ bản, không cần kiểm định hoặc hợp đồng
+    @Operation(
+            summary = "Đăng bán pin",
+            description = "Seller đăng bán pin (cần có gói BATTERY còn hiệu lực). Pin được hiển thị ngay sau khi đăng."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Đăng pin thành công"),
+            @ApiResponse(responseCode = "400", description = "Hết lượt đăng hoặc gói đã hết hạn"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping(value = "/products/batteries", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> createBatteryProduct(
             @RequestParam("productname") String productname,
@@ -300,6 +373,15 @@ public class SellerController {
     }
 
     //Quản lý sản phẩm pin - Chỉnh sửa hoặc gỡ khi chưa có đơn hàng
+    @Operation(
+            summary = "Cập nhật thông tin pin",
+            description = "Chỉnh sửa thông tin pin (chỉ khi chưa có đơn hàng)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @ApiResponse(responseCode = "400", description = "Sản phẩm đã có đơn hàng hoặc không thuộc về seller"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy sản phẩm")
+    })
     @PutMapping("/products/batteries/{id}")
     public ResponseEntity<Map<String, Object>> updateBatteryProduct(
             @PathVariable Long id,
@@ -316,6 +398,15 @@ public class SellerController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Xóa sản phẩm pin",
+            description = "Xóa sản phẩm pin (chỉ khi chưa có đơn hàng)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Xóa thành công"),
+            @ApiResponse(responseCode = "400", description = "Sản phẩm đã có đơn hàng"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy sản phẩm")
+    })
     @DeleteMapping("/products/batteries/{id}")
     public ResponseEntity<Map<String, Object>> deleteBatteryProduct(@PathVariable Long id) {
         User seller = getCurrentUser();
@@ -329,6 +420,14 @@ public class SellerController {
     }
 
     //Theo dõi đơn hàng xe đang trong quá trình giao dịch
+    @Operation(
+            summary = "Xem đơn hàng xe",
+            description = "Lấy danh sách đơn hàng xe mà seller đã bán"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/orders/cars")
     public ResponseEntity<Map<String, Object>> getCarOrders() {
         User seller = getCurrentUser();
@@ -342,6 +441,14 @@ public class SellerController {
     }
 
     //Theo dõi đơn hàng pin (giao hàng, xác nhận, hoàn tất)
+    @Operation(
+            summary = "Xem đơn hàng pin",
+            description = "Lấy danh sách đơn hàng pin mà seller đã bán"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/orders/batteries")
     public ResponseEntity<Map<String, Object>> getBatteryOrders() {
         User seller = getCurrentUser();
@@ -355,6 +462,14 @@ public class SellerController {
     }
 
     //Xem thống kê doanh thu từ xe, pin, lượt xem, và đánh giá từ người mua
+    @Operation(
+            summary = "Xem thống kê seller",
+            description = "Lấy thống kê tổng quan: số sản phẩm, lượt xem, đơn hàng, doanh thu"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/statistics")
     public ResponseEntity<Map<String, Object>> getSellerStatistics() {
         User seller = getCurrentUser();
@@ -368,6 +483,14 @@ public class SellerController {
     }
 
     //Hiển thị rõ các khoản hoa hồng bị trừ và số tiền thực nhận
+    @Operation(
+            summary = "Xem chi tiết doanh thu",
+            description = "Lấy chi tiết doanh thu: tổng bán, hoa hồng, thực nhận"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/revenue")
     public ResponseEntity<Map<String, Object>> getRevenueDetails() {
         User seller = getCurrentUser();
@@ -381,6 +504,14 @@ public class SellerController {
     }
 
     // Quản lý các đánh giá nhận được từ người mua
+    @Operation(
+            summary = "Xem đánh giá từ người mua",
+            description = "Lấy danh sách feedback và rating trung bình của seller"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/feedbacks")
     public ResponseEntity<Map<String, Object>> getSellerFeedbacks() {
         User seller = getCurrentUser();
@@ -398,6 +529,14 @@ public class SellerController {
     }
 
     //Lấy tất cả sản phẩm của seller
+    @Operation(
+            summary = "Xem tất cả sản phẩm",
+            description = "Lấy danh sách tất cả sản phẩm (xe + pin) của seller"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/products")
     public ResponseEntity<Map<String, Object>> getAllSellerProducts() {
         User seller = getCurrentUser();
@@ -415,6 +554,14 @@ public class SellerController {
 
     // SELLER XEM DANH SÁCH HỢP ĐỒNG CHỜ KÝ
     // Sau khi xe đạt kiểm định, manager tạo contract -> seller cần ký
+    @Operation(
+            summary = "Xem hợp đồng chờ ký",
+            description = "Lấy danh sách hợp đồng đang chờ seller ký (sau khi xe đạt kiểm định)"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/contracts/pending")
     public ResponseEntity<Map<String, Object>> getPendingContracts() {
         User seller = getCurrentUser();
@@ -430,6 +577,15 @@ public class SellerController {
 
     // SELLER KÝ HỢP ĐỒNG
     // Seller click "Ký hợp đồng" -> redirect sang DocuSeal để ký
+    @Operation(
+            summary = "Ký hợp đồng",
+            description = "Seller ký hợp đồng qua DocuSeal sau khi xe đạt kiểm định"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Chuyển sang DocuSeal để ký"),
+            @ApiResponse(responseCode = "400", description = "Hợp đồng không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping("/contracts/{contractId}/sign")
     public ResponseEntity<Map<String, Object>> signContract(@PathVariable Long contractId) {
         User seller = getCurrentUser();
@@ -455,6 +611,14 @@ public class SellerController {
     }
 
     // SELLER XEM TẤT CẢ HỢP ĐỒNG
+    @Operation(
+            summary = "Xem tất cả hợp đồng",
+            description = "Lấy danh sách tất cả hợp đồng của seller"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @GetMapping("/contracts")
     public ResponseEntity<Map<String, Object>> getAllContracts() {
         User seller = getCurrentUser();
@@ -471,6 +635,15 @@ public class SellerController {
     // SELLER GỌI API ĐỂ GỢI Ý GIÁ DỰA TRÊN DỮ LIỆU THỊ TRƯỜNG
     // Input: productType, brand, year, condition, model (optional), capacity/mileage (optional)
     // Output: minPrice, maxPrice, suggestedPrice, marketInsight
+    @Operation(
+            summary = "Gợi ý giá bán dựa trên AI",
+            description = "Seller nhập thông tin sản phẩm (loại, hãng, năm, tình trạng...) để nhận gợi ý giá từ AI"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Thành công - Trả về gợi ý giá"),
+            @ApiResponse(responseCode = "400", description = "Thông tin không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+    })
     @PostMapping("/suggest-price")
     public ResponseEntity<PriceSuggestionResponse> suggestPrice(
             @Valid @RequestBody PriceSuggestionRequest request) {

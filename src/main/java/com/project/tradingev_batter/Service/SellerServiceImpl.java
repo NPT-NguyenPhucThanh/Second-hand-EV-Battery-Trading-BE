@@ -427,31 +427,55 @@ public class SellerServiceImpl implements SellerService {
 
     //Lấy đơn hàng xe của seller
     @Override
+    @Transactional(readOnly = true)
     public List<Orders> getSellerCarOrders(Long sellerId) {
-        List<Orders> allOrders = orderRepository.findAll();
-        
+        // Load tất cả orders với details và products trong cùng transaction
+        List<Orders> allOrders = orderRepository.findAllWithDetails();
+
+        // Force initialize để tránh lazy loading error
         return allOrders.stream()
-                .filter(order -> order.getDetails().stream()
-                        .anyMatch(detail -> {
-                            Product product = detail.getProducts();
-                            return "Car EV".equals(product.getType()) && 
-                                   product.getUsers().getUserid().equals(sellerId);
-                        }))
+                .filter(order -> {
+                    // Initialize details trong transaction
+                    if (order.getDetails() != null) {
+                        return order.getDetails().stream()
+                                .anyMatch(detail -> {
+                                    Product product = detail.getProducts();
+                                    if (product != null && product.getUsers() != null) {
+                                        return "Car EV".equals(product.getType()) &&
+                                               product.getUsers().getUserid().equals(sellerId);
+                                    }
+                                    return false;
+                                });
+                    }
+                    return false;
+                })
                 .collect(Collectors.toList());
     }
 
     //Lấy đơn hàng pin của seller
     @Override
+    @Transactional(readOnly = true)
     public List<Orders> getSellerBatteryOrders(Long sellerId) {
-        List<Orders> allOrders = orderRepository.findAll();
-        
+        // Load tất cả orders với details và products trong cùng transaction
+        List<Orders> allOrders = orderRepository.findAllWithDetails();
+
+        // Force initialize để tránh lazy loading error
         return allOrders.stream()
-                .filter(order -> order.getDetails().stream()
-                        .anyMatch(detail -> {
-                            Product product = detail.getProducts();
-                            return "Battery".equals(product.getType()) && 
-                                   product.getUsers().getUserid().equals(sellerId);
-                        }))
+                .filter(order -> {
+                    // Initialize details trong transaction
+                    if (order.getDetails() != null) {
+                        return order.getDetails().stream()
+                                .anyMatch(detail -> {
+                                    Product product = detail.getProducts();
+                                    if (product != null && product.getUsers() != null) {
+                                        return "Battery".equals(product.getType()) &&
+                                               product.getUsers().getUserid().equals(sellerId);
+                                    }
+                                    return false;
+                                });
+                    }
+                    return false;
+                })
                 .collect(Collectors.toList());
     }
 

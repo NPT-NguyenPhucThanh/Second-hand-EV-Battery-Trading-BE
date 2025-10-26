@@ -28,4 +28,8 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
            "WHERE o.users.userid = :userid " +
            "AND o.status = :status")
     List<Orders> findByUsersAndStatus(long userid, OrderStatus status);
+
+    // Query lấy tất cả orders với details để tránh LazyInitializationException
+    @Query("SELECT DISTINCT o FROM Orders o LEFT JOIN FETCH o.details")
+    List<Orders> findAllWithDetails();
 }
