@@ -23,4 +23,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Tìm user theo role
     @Query("SELECT u FROM User u JOIN u.roles r WHERE r.rolename = :roleName")
     List<User> findByRole(String roleName);
+
+    // Get all users with roles eagerly loaded
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles")
+    List<User> findAllWithRoles();
+
+    // Get user by ID with roles eagerly loaded
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles WHERE u.userid = :id")
+    User findByIdWithRoles(Long id);
 }
