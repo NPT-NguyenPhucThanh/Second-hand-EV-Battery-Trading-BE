@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Repository;
 
+import com.project.tradingev_batter.enums.ProductStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Entity.Product;
@@ -11,6 +12,7 @@ import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product,Long> {
     List<Product> findByTypeAndInWarehouse(String type, boolean inWarehouse);
+    List<Product> findByTypeAndStatusAndInWarehouse(String type, ProductStatus status, boolean inWarehouse);
     List<Product> findByUsers(User user);
     List<Product> findByUsers_Userid(Long userId);
 

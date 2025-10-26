@@ -287,8 +287,8 @@ public class ManagerServiceImpl implements ManagerService {
     @Override
     @Transactional
     public List<Product> getPendingWarehouseProducts() {
-        // Custom query: Products DA_DUYET nhưng !inWarehouse && type="Car EV"
-        return productRepository.findByTypeAndInWarehouse("Car EV", false);  // Reuse existing, filter status="DA_DUYET" nếu cần add query
+        // Lấy danh sách xe đã đạt kiểm định (DA_DUYET) nhưng chưa vào kho
+        return productRepository.findByTypeAndStatusAndInWarehouse("Car EV", ProductStatus.DA_DUYET, false);
     }
 
     //Xóa sản phẩm khỏi kho

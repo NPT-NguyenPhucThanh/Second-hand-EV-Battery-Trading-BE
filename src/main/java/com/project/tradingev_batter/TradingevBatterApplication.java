@@ -304,14 +304,82 @@ public class TradingevBatterApplication {
         }
 
         // ============= SEED PRODUCTS (Check if already exists) =============
+        // Create a car product APPROVED (đã đạt kiểm định) waiting to enter warehouse
+        Product carProductApproved = productRepository.findByProductnameAndUsers("Honda e 2021", finalSeller)
+                .orElseGet(() -> {
+                    Brandcars brandcar = new Brandcars();
+                    brandcar.setYear(2021);
+                    brandcar.setOdo(18000.0);
+                    brandcar.setCapacity(35.5);
+                    brandcar.setColor("Trắng");
+                    brandcar.setLicensePlate("51C-11111");
+                    brandcar.setBrand("Honda");
+
+                    Product product = new Product();
+                    product.setProductname("Honda e 2021");
+                    product.setDescription("Xe điện Honda e, đã đạt kiểm định, đợi nhập kho");
+                    product.setCost(750000000.0);
+                    product.setAmount(1);
+                    product.setStatus(ProductStatus.DA_DUYET);
+                    product.setModel("Honda e");
+                    product.setType("Car EV");
+                    product.setSpecs("Công suất: 154hp, Tốc độ tối đa: 145km/h, Pin: 35.5kWh");
+                    product.setCreatedat(new Date());
+                    product.setUpdatedat(new Date());
+                    product.setInWarehouse(false); // Chờ Staff nhập vào kho
+                    product.setViewCount(0);
+                    product.setUsers(finalSeller);
+                    product.setBrandcars(brandcar);
+                    brandcar.setProducts(product);
+
+                    product = productRepository.save(product);
+                    System.out.println("Created Car Product Approved Waiting for Warehouse: Honda e");
+                    return product;
+                });
+
+        // Create a car product waiting for inspection (for Staff to see)
+        Product carProductPending = productRepository.findByProductnameAndUsers("VinFast VF8 2022", finalSeller)
+                .orElseGet(() -> {
+                    Brandcars brandcar = new Brandcars();
+                    brandcar.setYear(2022);
+                    brandcar.setOdo(15000.0);
+                    brandcar.setCapacity(85.0);
+                    brandcar.setColor("Xanh");
+                    brandcar.setLicensePlate("51A-12345");
+                    brandcar.setBrand("VinFast");
+
+                    Product product = new Product();
+                    product.setProductname("VinFast VF8 2022");
+                    product.setDescription("Xe điện VinFast VF8, tình trạng tốt, cần kiểm định");
+                    product.setCost(900000000.0);
+                    product.setAmount(1);
+                    product.setStatus(ProductStatus.CHO_KIEM_DUYET);
+                    product.setModel("VF8");
+                    product.setType("Car EV");
+                    product.setSpecs("Công suất: 300hp, Tốc độ tối đa: 200km/h, Pin: 85kWh");
+                    product.setCreatedat(new Date());
+                    product.setUpdatedat(new Date());
+                    product.setInWarehouse(false); // Chưa vào kho vì chưa kiểm định
+                    product.setViewCount(0);
+                    product.setUsers(finalSeller);
+                    product.setBrandcars(brandcar);
+                    brandcar.setProducts(product);
+
+                    product = productRepository.save(product);
+                    System.out.println("Created Car Product Pending Inspection: VinFast VF8");
+                    return product;
+                });
+
+        // Create a car product already in warehouse and selling
         Product carProduct = productRepository.findByProductnameAndUsers("Tesla Model 3 2020", finalSeller)
                 .orElseGet(() -> {
-                    // Create Brandcars first
                     Brandcars brandcar = new Brandcars();
                     brandcar.setYear(2020);
                     brandcar.setOdo(25000.0);
                     brandcar.setCapacity(75.0);
                     brandcar.setColor("Đỏ");
+                    brandcar.setLicensePlate("51B-67890");
+                    brandcar.setBrand("Tesla");
 
                     Product product = new Product();
                     product.setProductname("Tesla Model 3 2020");
@@ -324,14 +392,14 @@ public class TradingevBatterApplication {
                     product.setSpecs("Công suất: 283hp, Tốc độ tối đa: 225km/h, Pin: 75kWh");
                     product.setCreatedat(new Date());
                     product.setUpdatedat(new Date());
-                    product.setInWarehouse(true);
+                    product.setInWarehouse(true); // Đã vào kho sau khi kiểm định
                     product.setViewCount(150);
                     product.setUsers(finalSeller);
                     product.setBrandcars(brandcar);
                     brandcar.setProducts(product);
 
                     product = productRepository.save(product);
-                    System.out.println("Created Car Product: Tesla Model 3");
+                    System.out.println("Created Car Product In Warehouse: Tesla Model 3");
                     return product;
                 });
 
@@ -415,18 +483,19 @@ public class TradingevBatterApplication {
         }
 
         // ============= SEED ORDERS (Check if already exists) =============
+        Orders completedOrder = null;
         if (orderRepository.findByUsersAndStatus(finalBuyer.getUserid(), OrderStatus.DA_HOAN_TAT).isEmpty()) {
-            Orders completedOrder = new Orders();
-            completedOrder.setTotalamount(50000000.0);
-            completedOrder.setShippingfee(30000.0);
-            completedOrder.setTotalfinal(50030000.0);
-            completedOrder.setShippingaddress("123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM");
-            completedOrder.setPaymentmethod("VnPay");
-            completedOrder.setCreatedat(new Date());
-            completedOrder.setUpdatedat(new Date());
-            completedOrder.setStatus(OrderStatus.DA_HOAN_TAT);
-            completedOrder.setUsers(finalBuyer);
-            completedOrder = orderRepository.save(completedOrder);
+            Orders order = new Orders();
+            order.setTotalamount(50000000.0);
+            order.setShippingfee(30000.0);
+            order.setTotalfinal(50030000.0);
+            order.setShippingaddress("123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM");
+            order.setPaymentmethod("VnPay");
+            order.setCreatedat(new Date());
+            order.setUpdatedat(new Date());
+            order.setStatus(OrderStatus.DA_HOAN_TAT);
+            order.setUsers(finalBuyer);
+            completedOrder = orderRepository.save(order);
 
             // Create order detail
             Order_detail orderDetail = new Order_detail();
@@ -448,16 +517,20 @@ public class TradingevBatterApplication {
             transactionRepository.save(transaction);
 
             System.out.println("Created Completed Order for BUYER");
+        } else {
+            completedOrder = orderRepository.findByUsersAndStatus(finalBuyer.getUserid(), OrderStatus.DA_HOAN_TAT).get(0);
         }
+        final Orders finalCompletedOrder = completedOrder;
 
         // ============= SEED FEEDBACK (Check if already exists) =============
-        if (feedbackRepository.findByProductsAndUsers(batteryProduct, finalBuyer).isEmpty()) {
+        if (finalCompletedOrder != null && feedbackRepository.findByProductsAndUsersAndOrders(batteryProduct, finalBuyer, finalCompletedOrder).isEmpty()) {
             Feedback feedback = new Feedback();
             feedback.setRating(5);
             feedback.setComment("Pin chất lượng tốt, giao hàng nhanh!");
             feedback.setCreated_at(new Date());
             feedback.setProducts(batteryProduct);
             feedback.setUsers(finalBuyer);
+            feedback.setOrders(finalCompletedOrder);
             feedbackRepository.save(feedback);
             System.out.println("Created Feedback for Battery Product");
         }

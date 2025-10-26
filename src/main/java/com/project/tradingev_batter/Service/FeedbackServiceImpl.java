@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class FeedbackServiceImpl implements FeedbackService {
@@ -122,14 +123,14 @@ public class FeedbackServiceImpl implements FeedbackService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Kiểm tra đã đánh giá chưa
+        // Kiểm tra đã đánh giá chưa cho order và product này
         List<Feedback> existingFeedbacks = feedbackRepository.findByProducts_Productid(productId);
         boolean alreadyReviewed = existingFeedbacks.stream()
                 .anyMatch(f -> f.getUsers() != null && f.getUsers().getUserid() == buyerId &&
-                              f.getOrders() != null && f.getOrders().getOrderid() == orderId);
+                              f.getOrders() != null && Objects.equals(f.getOrders().getOrderid(), orderId));
 
         if (alreadyReviewed) {
-            throw new RuntimeException("Bạn đã đánh giá sản phẩm này rồi");
+            throw new RuntimeException("Bạn đã đánh giá sản phẩm này cho đơn hàng này rồi");
         }
         
         // Tạo feedback
