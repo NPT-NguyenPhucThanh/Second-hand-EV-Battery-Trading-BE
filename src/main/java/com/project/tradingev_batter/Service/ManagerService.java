@@ -14,6 +14,9 @@ import java.util.Map;
 public interface ManagerService {
     List<Notification> getNotiForManager(Long managerId);
 
+    // Product Approval Methods
+    List<Product> getPendingApprovalProducts(); // Lấy danh sách sản phẩm CHỜ DUYỆT
+    List<Product> getPendingInspectionProducts(); // Lấy danh sách sản phẩm CHỜ KIỂM ĐỊNH
     void approvePreliminaryProduct(Long productId, String note, boolean approved);
 
     void inputInspectionResult(Long productId, boolean passed, String note);

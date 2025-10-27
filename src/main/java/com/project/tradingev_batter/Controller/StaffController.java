@@ -38,6 +38,34 @@ public class StaffController {
         return ResponseEntity.ok(managerService.getNotiForManager(staffId));
     }
 
+    @Operation(summary = "Lấy danh sách bài đăng cần duyệt",
+               description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ DUYỆT")
+    @GetMapping("/products/pending-approval")
+    public ResponseEntity<Map<String, Object>> getPendingProducts() {
+        List<Product> pendingProducts = managerService.getPendingApprovalProducts();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalPending", pendingProducts.size());
+        response.put("products", pendingProducts);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Lấy danh sách sản phẩm đang chờ kiểm định",
+               description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ KIỂM ĐỊNH")
+    @GetMapping("/products/pending-inspection")
+    public ResponseEntity<Map<String, Object>> getPendingInspectionProducts() {
+        List<Product> pendingInspection = managerService.getPendingInspectionProducts();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalPending", pendingInspection.size());
+        response.put("products", pendingInspection);
+
+        return ResponseEntity.ok(response);
+    }
+
     @Operation(summary = "Duyệt sản phẩm (giai đoạn sơ bộ)",
                description = "Staff duyệt sơ bộ thông tin sản phẩm xe trước khi chuyển đi kiểm định")
     @PostMapping("/products/{productId}/approve-preliminary")

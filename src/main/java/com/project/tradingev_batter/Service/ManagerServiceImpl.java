@@ -66,6 +66,24 @@ public class ManagerServiceImpl implements ManagerService {
         return notificationRepository.findByUsers(manager);
     }
 
+    // Lấy danh sách sản phẩm CHỜ DUYỆT (Staff cần duyệt sơ bộ)
+    @Override
+    @Transactional(readOnly = true)
+    public List<Product> getPendingApprovalProducts() {
+        return productRepository.findAll().stream()
+                .filter(p -> ProductStatus.CHO_DUYET.equals(p.getStatus()))
+                .toList();
+    }
+
+    // Lấy danh sách sản phẩm CHỜ KIỂM ĐỊNH (Đã duyệt sơ bộ, chờ bên thứ 3 kiểm định)
+    @Override
+    @Transactional(readOnly = true)
+    public List<Product> getPendingInspectionProducts() {
+        return productRepository.findAll().stream()
+                .filter(p -> ProductStatus.CHO_KIEM_DUYET.equals(p.getStatus()))
+                .toList();
+    }
+
     //Duyệt sơ bộ product (xe) của seller
     //nếu approved = true -> chuyển trạng thái product sang CHO_KIEM_DUYET
     //nếu approved = false -> chuyển trạng thái product sang BI_TU_CHOI
