@@ -37,4 +37,18 @@ public interface UserPackageRepository extends JpaRepository<UserPackage, Long> 
 
     // Check xem user đã mua package chưa (seeds)
     boolean existsByUserAndPackageService(User user, PackageService packageService);
+
+    // Lấy tất cả user đang có gói package đang hoạt động
+    @Query("SELECT up FROM UserPackage up WHERE up.expiryDate > :currentDate " +
+           "ORDER BY up.expiryDate DESC")
+    List<UserPackage> findAllActivePackages(@Param("currentDate") Date currentDate);
+
+    // Lấy user package theo loại package đang hoạt động
+    @Query("SELECT up FROM UserPackage up WHERE up.packageService.packageType = :packageType " +
+           "AND up.expiryDate > :currentDate " +
+           "ORDER BY up.expiryDate DESC")
+    List<UserPackage> findActivePackagesByType(
+        @Param("packageType") String packageType,
+        @Param("currentDate") Date currentDate
+    );
 }

@@ -689,30 +689,48 @@ public class DocuSealServiceImpl implements DocuSealService {
 
     //Lấy signing URL cho seller
     private String getSigningUrlForSeller(DocuSealSubmissionResponse response) {
-        if (response == null || response.getSubmitters() == null) {
-            log.warn("Response or submitters is null, cannot get signing URL for seller");
+        if (response == null) {
+            log.warn("Response is null, cannot get signing URL for seller");
+            return "N/A";
+        }
+
+        if (response.getSubmitters() == null || response.getSubmitters().isEmpty()) {
+            log.warn("Submitters list is null or empty. Submission ID: {}", response.getSlug());
+            // Nếu có submission URL, sử dụng nó
+            if (response.getSubmissionUrl() != null) {
+                return response.getSubmissionUrl();
+            }
             return "N/A";
         }
 
         return response.getSubmitters().stream()
-                .filter(s -> "Seller".equalsIgnoreCase(s.getRole()))
+                .filter(s -> s != null && "Seller".equalsIgnoreCase(s.getRole()))
                 .findFirst()
                 .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
-                .orElse("N/A");
+                .orElse(response.getSubmissionUrl() != null ? response.getSubmissionUrl() : "N/A");
     }
 
     //Lấy signing URL cho buyer
     private String getSigningUrlForBuyer(DocuSealSubmissionResponse response) {
-        if (response == null || response.getSubmitters() == null) {
-            log.warn("Response or submitters is null, cannot get signing URL for buyer");
+        if (response == null) {
+            log.warn("Response is null, cannot get signing URL for buyer");
+            return "N/A";
+        }
+
+        if (response.getSubmitters() == null || response.getSubmitters().isEmpty()) {
+            log.warn("Submitters list is null or empty. Submission ID: {}", response.getSlug());
+            // Nếu có submission URL, sử dụng nó
+            if (response.getSubmissionUrl() != null) {
+                return response.getSubmissionUrl();
+            }
             return "N/A";
         }
 
         return response.getSubmitters().stream()
-                .filter(s -> "Buyer".equalsIgnoreCase(s.getRole()))
+                .filter(s -> s != null && "Buyer".equalsIgnoreCase(s.getRole()))
                 .findFirst()
                 .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
-                .orElse("N/A");
+                .orElse(response.getSubmissionUrl() != null ? response.getSubmissionUrl() : "N/A");
     }
 
     //Tạo notification

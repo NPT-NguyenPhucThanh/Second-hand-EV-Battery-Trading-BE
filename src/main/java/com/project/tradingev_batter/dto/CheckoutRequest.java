@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -26,6 +27,7 @@ public class CheckoutRequest {
 
     // Thời gian hẹn giao dịch (optional - chỉ cần khi deposit xe)
     // Validation @Future sẽ được check trong API /orders/{id}/deposit
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     private Date appointmentDate; // Ngày giờ hẹn giao dịch
 
     // Có muốn sang tên xe không

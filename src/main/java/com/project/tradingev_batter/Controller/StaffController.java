@@ -405,6 +405,89 @@ public class StaffController {
         }
     }
 
+    // USER PACKAGE MANAGEMENT
+    @Operation(summary = "Lấy danh sách tất cả người dùng đang sử dụng gói",
+               description = "Staff lấy danh sách tất cả user đang có gói package còn hiệu lực")
+    @GetMapping("/user-packages/active")
+    public ResponseEntity<Map<String, Object>> getAllActiveUserPackages() {
+        try {
+            List<UserPackage> userPackages = managerService.getAllActiveUserPackages();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("totalActivePackages", userPackages.size());
+            response.put("userPackages", userPackages.stream().map(up -> {
+                Map<String, Object> packageMap = new HashMap<>();
+                packageMap.put("userPackageId", up.getUserpackageid());
+                packageMap.put("userId", up.getUser().getUserid());
+                packageMap.put("username", up.getUser().getUsername());
+                packageMap.put("displayName", up.getUser().getDisplayname() != null ? up.getUser().getDisplayname() : "N/A");
+                packageMap.put("email", up.getUser().getEmail());
+                packageMap.put("packageId", up.getPackageService().getPackageid());
+                packageMap.put("packageName", up.getPackageService().getName());
+                packageMap.put("packageType", up.getPackageService().getPackageType());
+                packageMap.put("purchaseDate", up.getPurchaseDate());
+                packageMap.put("expiryDate", up.getExpiryDate());
+                packageMap.put("remainingCars", up.getRemainingCars());
+                packageMap.put("remainingBatteries", up.getRemainingBatteries());
+                packageMap.put("durationMonths", up.getPackageService().getDurationMonths());
+                return packageMap;
+            }).toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải danh sách user packages: " + e.getMessage()
+            ));
+        }
+    }
+
+    @Operation(summary = "Lấy danh sách người dùng đang sử dụng gói theo loại",
+               description = "Staff lấy danh sách user đang có gói CAR hoặc BATTERY còn hiệu lực")
+    @GetMapping("/user-packages/active/type/{packageType}")
+    public ResponseEntity<Map<String, Object>> getActiveUserPackagesByType(@PathVariable String packageType) {
+        try {
+            // Validate packageType
+            if (!"CAR".equals(packageType) && !"BATTERY".equals(packageType)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Package type phải là 'CAR' hoặc 'BATTERY'"
+                ));
+            }
+
+            List<UserPackage> userPackages = managerService.getActiveUserPackagesByType(packageType);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("packageType", packageType);
+            response.put("totalActivePackages", userPackages.size());
+            response.put("userPackages", userPackages.stream().map(up -> {
+                Map<String, Object> packageMap = new HashMap<>();
+                packageMap.put("userPackageId", up.getUserpackageid());
+                packageMap.put("userId", up.getUser().getUserid());
+                packageMap.put("username", up.getUser().getUsername());
+                packageMap.put("displayName", up.getUser().getDisplayname() != null ? up.getUser().getDisplayname() : "N/A");
+                packageMap.put("email", up.getUser().getEmail());
+                packageMap.put("packageId", up.getPackageService().getPackageid());
+                packageMap.put("packageName", up.getPackageService().getName());
+                packageMap.put("purchaseDate", up.getPurchaseDate());
+                packageMap.put("expiryDate", up.getExpiryDate());
+                packageMap.put("remainingCars", up.getRemainingCars());
+                packageMap.put("remainingBatteries", up.getRemainingBatteries());
+                packageMap.put("durationMonths", up.getPackageService().getDurationMonths());
+                return packageMap;
+            }).toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải danh sách user packages: " + e.getMessage()
+            ));
+        }
+    }
+
     // ============= HELPER METHODS ====================================================================================
 
     private User getCurrentUser() {

@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.Notification;
 import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.UserPackage;
 import com.project.tradingev_batter.dto.RefundRequest;
 import org.springframework.stereotype.Service;
 
@@ -52,6 +53,10 @@ public interface ManagerService {
     void removeFromWarehouse(Long productId, String reason); //Xóa sản phẩm khỏi kho
 
     void updateWarehouseStatus(Long productId, String newStatus); //Cập nhật trạng thái kho
+
+    // User Package Management
+    List<UserPackage> getAllActiveUserPackages(); // Lấy danh sách tất cả user đang có gói còn hiệu lực
+    List<UserPackage> getActiveUserPackagesByType(String packageType); // Lấy danh sách user có gói theo loại (CAR/BATTERY)
 
     void processOrderRefundIfRejected(Long orderId, double depositeAmount); //Xử lý hoàn tiền đơn hàng bị từ chối
 }

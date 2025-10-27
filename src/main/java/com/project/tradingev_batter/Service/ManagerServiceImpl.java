@@ -32,6 +32,7 @@ public class ManagerServiceImpl implements ManagerService {
     private final RefundRepository refundRepository;
     private final DocuSealService docuSealService;
     private final NotificationService notificationService;
+    private final UserPackageRepository userPackageRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
                               UserRepository userRepository,
@@ -42,7 +43,8 @@ public class ManagerServiceImpl implements ManagerService {
                               PackageServiceRepository packageServiceRepository,
                               RefundRepository refundRepository,
                               DocuSealService docuSealService,
-                              NotificationService notificationService) {
+                              NotificationService notificationService,
+                              UserPackageRepository userPackageRepository) {
         this.refundRepository = refundRepository;
         this.packageServiceRepository = packageServiceRepository;
         this.docuSealService = docuSealService;
@@ -53,6 +55,7 @@ public class ManagerServiceImpl implements ManagerService {
         this.orderRepository = orderRepository;
         this.disputeRepository = disputeRepository;
         this.notificationService = notificationService;
+        this.userPackageRepository = userPackageRepository;
     }
 
     //Sử dụng Notification entity. Khi seller đăng product (xe), tự động tạo notification cho managers.
@@ -673,5 +676,23 @@ public class ManagerServiceImpl implements ManagerService {
         report.put("totalCommission", revenueReport.get("totalCommission"));
 
         return report;
+    }
+
+    // Lấy tất cả user đang sử dụng gói (còn hiệu lực)
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserPackage> getAllActiveUserPackages() {
+        return userPackageRepository.findAllActivePackages(new Date());
+    }
+
+    // Lấy user đang sử dụng gói theo loại (CAR/BATTERY)
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserPackage> getActiveUserPackagesByType(String packageType) {
+        // Validate packageType
+        if (!"CAR".equals(packageType) && !"BATTERY".equals(packageType)) {
+            throw new RuntimeException("Invalid package type. Must be 'CAR' or 'BATTERY'");
+        }
+        return userPackageRepository.findActivePackagesByType(packageType, new Date());
     }
 }
