@@ -25,6 +25,10 @@ public interface ManagerService {
 
     void addToWarehouse(Long productId);
 
+    List<com.project.tradingev_batter.Entity.Orders> getAllOrders(); // Lấy tất cả orders
+
+    List<com.project.tradingev_batter.Entity.Orders> getOrdersByStatus(String status); // Lấy orders theo status
+
     void approveOrder(Long orderId, boolean approved, String note);
 
     void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest);

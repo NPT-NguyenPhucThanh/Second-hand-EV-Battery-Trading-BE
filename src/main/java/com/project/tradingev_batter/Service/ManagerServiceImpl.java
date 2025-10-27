@@ -193,6 +193,27 @@ public class ManagerServiceImpl implements ManagerService {
         productRepository.save(product);
     }
 
+    // Lấy tất cả orders
+    @Override
+    @Transactional(readOnly = true)
+    public List<Orders> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
+    // Lấy orders theo status
+    @Override
+    @Transactional(readOnly = true)
+    public List<Orders> getOrdersByStatus(String status) {
+        try {
+            OrderStatus orderStatus = OrderStatus.valueOf(status);
+            return orderRepository.findAll().stream()
+                    .filter(o -> orderStatus.equals(o.getStatus()))
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid order status: " + status);
+        }
+    }
+
     //Duyệt đơn hàng
     //nếu approved = true -> chuyển trạng thái đơn hàng sang DA_DUYET
     //nếu approved = false -> chuyển trạng thái đơn hàng sang BI_TU_CHOI

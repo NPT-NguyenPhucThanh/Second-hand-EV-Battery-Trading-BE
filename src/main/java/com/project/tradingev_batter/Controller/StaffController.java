@@ -129,6 +129,35 @@ public class StaffController {
 
     //  ORDER MANAGEMENT
 
+    @Operation(summary = "Lấy danh sách tất cả đơn hàng",
+               description = "Staff lấy danh sách tất cả đơn hàng trong hệ thống")
+    @GetMapping("/orders")
+    public ResponseEntity<Map<String, Object>> getAllOrders() {
+        List<Orders> orders = managerService.getAllOrders();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("totalOrders", orders.size());
+        response.put("orders", orders);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Lấy danh sách đơn hàng theo trạng thái",
+               description = "Staff lấy danh sách đơn hàng theo status (CHO_DUYET, DA_DUYET, DANG_GIAO_DICH, DA_HOAN_TAT, BI_TU_CHOI, TRANH_CHAP, etc.)")
+    @GetMapping("/orders/status/{status}")
+    public ResponseEntity<Map<String, Object>> getOrdersByStatus(@PathVariable String status) {
+        List<Orders> orders = managerService.getOrdersByStatus(status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("orderStatus", status);
+        response.put("totalOrders", orders.size());
+        response.put("orders", orders);
+
+        return ResponseEntity.ok(response);
+    }
+
     @Operation(summary = "Duyệt đơn hàng",
                description = "Staff duyệt hoặc từ chối đơn hàng sau khi buyer đặt cọc")
     @PostMapping("/orders/{orderId}/approve")
