@@ -18,7 +18,7 @@ public class Brandbattery {
     @Column(name = "batteryid")
     private long batteryid;
 
-    @Column(name = "brand")
+    @Column(name = "brand", columnDefinition = "NVARCHAR(100)")
     private String brand;
 
     @Column(name = "year")
@@ -30,10 +30,10 @@ public class Brandbattery {
     @Column(name = "voltage")
     private double voltage;
 
-    @Column(name = "condition")
+    @Column(name = "condition", columnDefinition = "NVARCHAR(100)")
     private String condition; // "Mới", "Cũ", "Đã sử dụng"
 
-    @Column(name = "pickup_address")
+    @Column(name = "pickup_address", columnDefinition = "NVARCHAR(500)")
     private String pickupAddress; // Địa chỉ lấy hàng
 
     @Column(name = "remaining_capacity")

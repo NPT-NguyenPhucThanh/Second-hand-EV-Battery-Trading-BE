@@ -21,13 +21,13 @@ public class Post {
     @Column(name = "postid")
     private long postid;
 
-    @Column(name = "title")
+    @Column(name = "title", columnDefinition = "NVARCHAR(255)")
     private String title;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
-    @Column(name = "status")
+    @Column(name = "status", columnDefinition = "NVARCHAR(50)")
     @Enumerated(EnumType.STRING)
     private PostStatus status;
 

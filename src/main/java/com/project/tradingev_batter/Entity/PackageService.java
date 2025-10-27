@@ -18,10 +18,10 @@ public class PackageService {
     @Column(name = "packageid")
     private long packageid;
 
-    @Column(name = "name")
+    @Column(name = "name", columnDefinition = "NVARCHAR(100)")
     private String name; //"Cơ bản", "Chuyên nghiệp", "VIP"
 
-    @Column(name = "package_type")
+    @Column(name = "package_type", columnDefinition = "NVARCHAR(50)")
     private String packageType; // "CAR" hoặc "BATTERY"
 
     @Column(name = "duration_months")
@@ -39,6 +39,6 @@ public class PackageService {
     @Column(name = "created_at")
     private Date createdAt;
     
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description; // Mô tả gói
 }

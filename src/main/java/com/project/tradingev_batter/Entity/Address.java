@@ -17,19 +17,19 @@ public class Address {
     @Column(name = "addressid")
     private long addressid;
 
-    @Column(name = "street")
+    @Column(name = "street", columnDefinition = "NVARCHAR(255)")
     private String street;
 
-    @Column(name = "ward")
+    @Column(name = "ward", columnDefinition = "NVARCHAR(100)")
     private String ward;
 
-    @Column(name = "district")
+    @Column(name = "district", columnDefinition = "NVARCHAR(100)")
     private String district;
 
-    @Column(name = "province")
+    @Column(name = "province", columnDefinition = "NVARCHAR(100)")
     private String province;
 
-    @Column(name = "country")
+    @Column(name = "country", columnDefinition = "NVARCHAR(100)")
     private String country;
     
     @ManyToOne

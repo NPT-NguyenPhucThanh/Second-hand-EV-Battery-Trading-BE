@@ -20,7 +20,7 @@ public class Comment {
     @Column(name = "commentid")
     private long commentid;
 
-    @Column(name = "text")
+    @Column(name = "text", columnDefinition = "NVARCHAR(MAX)")
     private String text;
 
     @Column(name = "created_at")

@@ -20,7 +20,7 @@ public class Role {
     @Column(name = "roleid")
     private long roleid;
 
-    @Column(name = "rolename")
+    @Column(name = "rolename", columnDefinition = "NVARCHAR(50)")
     private String rolename;
 
     @Column(name = "joindate")

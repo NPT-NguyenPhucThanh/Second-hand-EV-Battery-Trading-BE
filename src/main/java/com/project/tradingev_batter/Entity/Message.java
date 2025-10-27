@@ -18,13 +18,13 @@ public class Message {
     @Column(name = "messid")
     private Long messid;
 
-    @Column(name = "text")
+    @Column(name = "text", columnDefinition = "NVARCHAR(MAX)")
     private String text;
 
     @Column(name = "attachUrl")
     private String attachUrl;
 
-    @Column(name = "message_type")
+    @Column(name = "message_type", columnDefinition = "NVARCHAR(50)")
     private String messageType; // TEXT, IMAGE, FILE
 
     @Column(name = "is_read")

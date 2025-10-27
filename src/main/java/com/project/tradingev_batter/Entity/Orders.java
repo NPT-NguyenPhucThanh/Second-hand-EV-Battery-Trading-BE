@@ -31,10 +31,10 @@ public class Orders {
     @Column(name = "total_final")
     private double totalfinal;
 
-    @Column(name = "shipping_address")
+    @Column(name = "shipping_address", columnDefinition = "NVARCHAR(500)")
     private String shippingaddress;
 
-    @Column(name = "paymentMethod")
+    @Column(name = "paymentMethod", columnDefinition = "NVARCHAR(100)")
     private String paymentmethod;
 
     @Column(name = "createdat")
@@ -43,14 +43,14 @@ public class Orders {
     @Column(name = "updatedat")
     private Date updatedat;
 
-    @Column(name = "status")
+    @Column(name = "status", columnDefinition = "NVARCHAR(50)")
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
     @Column(name = "package_id")
     private Long packageId; // Lưu ID gói dịch vụ khi order là mua gói
 
-    @Column(name = "transaction_location")
+    @Column(name = "transaction_location", columnDefinition = "NVARCHAR(500)")
     private String transactionLocation; // Điểm giao dịch (cho đơn xe)
 
     @Column(name = "appointment_date")

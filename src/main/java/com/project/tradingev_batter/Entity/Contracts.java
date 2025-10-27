@@ -27,7 +27,7 @@ public class Contracts {
     @Column(name = "signedbySeller")
     private Date signedbySeller;
 
-    @Column(name = "signedMethod")
+    @Column(name = "signedMethod", columnDefinition = "NVARCHAR(50)")
     private String signedMethod; // "DOCUSEAL"
 
     @Column(name = "contractFile")
@@ -52,7 +52,7 @@ public class Contracts {
     @Column(name = "seller_signed_at")
     private Date sellerSignedAt; // Thời gian seller ký
 
-    @Column(name = "contract_type")
+    @Column(name = "contract_type", columnDefinition = "NVARCHAR(50)")
     private String contractType; // "PRODUCT_LISTING" (đăng bán) hoặc "SALE_TRANSACTION" (mua bán)
 
     @ManyToOne

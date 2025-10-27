@@ -18,7 +18,7 @@ public class Brandcars {
     @Column(name = "carid")
     private long carid;
 
-    @Column(name = "brand")
+    @Column(name = "brand", columnDefinition = "NVARCHAR(100)")
     private String brand; // Hãng xe
 
     @Column(name = "year")
@@ -33,7 +33,7 @@ public class Brandcars {
     @Column(name = "capacity")
     private double capacity; // Dung tích pin
 
-    @Column(name = "color")
+    @Column(name = "color", columnDefinition = "NVARCHAR(50)")
     private String color;
 
     @OneToOne

@@ -59,9 +59,18 @@ public class DocuSealSubmissionRequest {
         
         /**
          * Các trường dữ liệu được điền sẵn (pre-filled fields)
-         * Key = field name trong template
-         * Value = giá trị cần điền
+         * Phải là Array of objects với format: [{"name": "field_name", "default_value": "value"}]
          */
-        private java.util.Map<String, Object> fields;
+        private List<Field> fields;
+    }
+
+    //Field data structure theo yêu cầu của DocuSeal API
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Field {
+        private String name;           // Tên field trong template
+        private String default_value;  // Giá trị mặc định
     }
 }

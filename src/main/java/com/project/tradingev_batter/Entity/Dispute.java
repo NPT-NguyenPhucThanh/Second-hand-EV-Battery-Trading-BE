@@ -19,14 +19,14 @@ public class Dispute {
     @Column(name = "disputeid")
     private long disputeid;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
-    @Column(name = "status")
+    @Column(name = "status", columnDefinition = "NVARCHAR(50)")
     @Enumerated(EnumType.STRING)
     private DisputeStatus status;
 
-    @Column(name = "resolution")
+    @Column(name = "resolution", columnDefinition = "NVARCHAR(MAX)")
     private String resolution;
 
     @Column(name = "created_at")

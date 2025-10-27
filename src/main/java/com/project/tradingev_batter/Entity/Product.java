@@ -24,10 +24,10 @@ public class Product {
     @Column(name = "productid")
     private long productid;
 
-    @Column(name = "productname")
+    @Column(name = "productname", columnDefinition = "NVARCHAR(255)")
     private String productname;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
     @Column(name = "cost")
@@ -36,19 +36,19 @@ public class Product {
     @Column(name = "amount")
     private int amount;
 
-    @Column(name = "status")
+    @Column(name = "status", columnDefinition = "NVARCHAR(50)")
     @Enumerated(EnumType.STRING)
     private ProductStatus status;
 
-    @Column(name = "model")
+    @Column(name = "model", columnDefinition = "NVARCHAR(100)")
     private String model;
 
     //Two-wheel EV, Car EV, Battery
-    @Column(name = "type")
+    @Column(name = "type", columnDefinition = "NVARCHAR(50)")
     private String type;
 
     //Thong so ki thuat
-    @Column(name = "specs")
+    @Column(name = "specs", columnDefinition = "NVARCHAR(MAX)")
     private String specs;
 
     @Column(name = "createdat")

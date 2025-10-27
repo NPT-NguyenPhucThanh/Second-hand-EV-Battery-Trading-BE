@@ -43,7 +43,7 @@ public class User {
     @Column(name = "email",  nullable = false)
     private String email;
 
-    @Column(name = "displayname")
+    @Column(name = "displayname", columnDefinition = "NVARCHAR(255)")
     private String displayname;
 
     @Column(name = "created_at",   nullable = false)
@@ -53,7 +53,7 @@ public class User {
     private Date updated_at;
 
     // Thông tin nâng cấp lên Seller
-    @Column(name = "seller_upgrade_status")
+    @Column(name = "seller_upgrade_status", columnDefinition = "NVARCHAR(50)")
     private String sellerUpgradeStatus; // "PENDING", "APPROVED", "REJECTED", null (chưa yêu cầu)
 
     @Column(name = "seller_upgrade_request_date")
@@ -68,7 +68,7 @@ public class User {
     @Column(name = "vehicle_registration_url")
     private String vehicleRegistrationUrl; // URL giấy tờ xe (nếu có)
 
-    @Column(name = "rejection_reason")
+    @Column(name = "rejection_reason", columnDefinition = "NVARCHAR(MAX)")
     private String rejectionReason; // Lý do từ chối nếu bị reject
 
     @ManyToMany(fetch = FetchType.LAZY)

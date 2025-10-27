@@ -18,10 +18,10 @@ public class Notification {
     @Column(name = "notificationid")
     private long notificationid;
 
-    @Column(name = "title")
+    @Column(name = "title", columnDefinition = "NVARCHAR(255)")
     private String title;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "NVARCHAR(MAX)")
     private String description;
 
     @Column(name = "created_time")
