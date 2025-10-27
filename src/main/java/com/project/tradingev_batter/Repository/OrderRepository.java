@@ -32,4 +32,13 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
     // Query lấy tất cả orders với details để tránh LazyInitializationException
     @Query("SELECT DISTINCT o FROM Orders o LEFT JOIN FETCH o.details")
     List<Orders> findAllWithDetails();
+
+    // Query lấy order by ID với details để tránh LazyInitializationException
+    // Không fetch contracts cùng lúc để tránh MultipleBagFetchException
+    @Query("SELECT DISTINCT o FROM Orders o " +
+           "LEFT JOIN FETCH o.details d " +
+           "LEFT JOIN FETCH d.products p " +
+           "LEFT JOIN FETCH p.users " +
+           "WHERE o.orderid = :orderId")
+    java.util.Optional<Orders> findByIdWithDetails(Long orderId);
 }

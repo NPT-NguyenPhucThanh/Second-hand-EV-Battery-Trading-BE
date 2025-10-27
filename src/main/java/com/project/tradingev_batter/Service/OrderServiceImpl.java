@@ -58,7 +58,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public Orders getOrderById(Long orderId) {
-        return orderRepository.findById(orderId)
+        return orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
     }
 
@@ -191,7 +191,7 @@ public class OrderServiceImpl implements OrderService {
         User buyer = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        Orders order = orderRepository.findById(orderId)
+        Orders order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
@@ -236,7 +236,7 @@ public class OrderServiceImpl implements OrderService {
         User buyer = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        Orders order = orderRepository.findById(orderId)
+        Orders order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
@@ -296,7 +296,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public Orders confirmReceipt(Long userId, Long orderId) {
-        Orders order = orderRepository.findById(orderId)
+        Orders order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         // Kiểm tra quyền sở hữu
