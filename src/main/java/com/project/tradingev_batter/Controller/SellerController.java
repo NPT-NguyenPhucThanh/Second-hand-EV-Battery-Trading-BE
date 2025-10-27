@@ -234,45 +234,60 @@ public class SellerController {
     //Đăng xe - Cung cấp đầy đủ thông tin xe, hình ảnh, biển số, thông số, tình trạng, giá
     @Operation(
             summary = "Đăng bán xe",
-            description = "Seller đăng bán xe (cần có gói CAR còn hiệu lực). Xe sẽ đi qua quy trình kiểm định."
+            description = "Seller đăng bán xe (cần có gói CAR còn hiệu lực). Xe sẽ đi qua quy trình kiểm định. " +
+                    "LƯU Ý: Endpoint này yêu cầu multipart/form-data. Nếu test qua Swagger UI gặp lỗi, vui lòng test qua Postman."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Đăng xe thành công - Chờ kiểm định"),
             @ApiResponse(responseCode = "400", description = "Hết lượt đăng hoặc gói đã hết hạn"),
             @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
     })
-    @PostMapping(value = "/products/cars", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/products/cars", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<Map<String, Object>> createCarProduct(
-            @RequestParam("productname") String productname,
-            @RequestParam("description") String description,
-            @RequestParam("cost") double cost,
-            @RequestParam("licensePlate") String licensePlate,
-            @RequestParam("model") String model,
-            @RequestParam("specs") String specs,
-            @RequestParam("brand") String brand,
-            @RequestParam("year") int year,
-            @RequestParam(value = "images", required = false) MultipartFile[] images) {
-        
+            @RequestParam(value = "productname", required = true) String productname,
+            @RequestParam(value = "description", required = true) String description,
+            @RequestParam(value = "cost", required = true) double cost,
+            @RequestParam(value = "licensePlate", required = true) String licensePlate,
+            @RequestParam(value = "model", required = true) String model,
+            @RequestParam(value = "specs", required = true) String specs,
+            @RequestParam(value = "brand", required = true) String brand,
+            @RequestParam(value = "year", required = true) int year,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
+
         User seller = getCurrentUser();
         
-        // Kiểm tra gói còn hiệu lực
-        if (!sellerService.canPostCar(seller.getUserid())) {
+        try {
+            // Kiểm tra gói còn hiệu lực
+            if (!sellerService.canPostCar(seller.getUserid())) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("message", "Bạn đã hết lượt đăng xe hoặc gói đã hết hạn. Vui lòng mua/gia hạn gói.");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
+            // Convert List to Array
+            MultipartFile[] imageArray = images != null && !images.isEmpty()
+                    ? images.toArray(new MultipartFile[0])
+                    : null;
+
+            Product product = sellerService.createCarProduct(
+                    seller.getUserid(), productname, description, cost,
+                    licensePlate, model, specs, brand, year, imageArray);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đăng xe thành công. Đang chờ kiểm định.");
+            response.put("productId", product.getProductid());
+            response.put("productName", product.getProductname());
+            response.put("status", product.getStatus());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
-            errorResponse.put("message", "Bạn đã hết lượt đăng xe hoặc gói đã hết hạn. Vui lòng mua/gia hạn gói.");
+            errorResponse.put("message", "Không thể đăng xe: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
-        
-        Product product = sellerService.createCarProduct(
-                seller.getUserid(), productname, description, cost, 
-                licensePlate, model, specs, brand, year, images);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Đăng xe thành công. Đang chờ kiểm định.");
-        response.put("product", product);
-        
-        return ResponseEntity.ok(response);
     }
 
     //Quản lý trạng thái đăng xe
@@ -331,45 +346,60 @@ public class SellerController {
     //Đăng bán pin - Cung cấp thông tin cơ bản, không cần kiểm định hoặc hợp đồng
     @Operation(
             summary = "Đăng bán pin",
-            description = "Seller đăng bán pin (cần có gói BATTERY còn hiệu lực). Pin được hiển thị ngay sau khi đăng."
+            description = "Seller đăng bán pin (cần có gói BATTERY còn hiệu lực). Pin được hiển thị ngay sau khi đăng. " +
+                    "LƯU Ý: Endpoint này yêu cầu multipart/form-data. Nếu test qua Swagger UI gặp lỗi, vui lòng test qua Postman."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Đăng pin thành công"),
             @ApiResponse(responseCode = "400", description = "Hết lượt đăng hoặc gói đã hết hạn"),
             @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
     })
-    @PostMapping(value = "/products/batteries", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/products/batteries", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<Map<String, Object>> createBatteryProduct(
-            @RequestParam("productname") String productname,
-            @RequestParam("description") String description,
-            @RequestParam("cost") double cost,
-            @RequestParam("capacity") double capacity,
-            @RequestParam("voltage") double voltage,
-            @RequestParam("brand") String brand,
-            @RequestParam("condition") String condition,
-            @RequestParam("pickupAddress") String pickupAddress,
-            @RequestParam(value = "images", required = false) MultipartFile[] images) {
-        
+            @RequestParam(value = "productname", required = true) String productname,
+            @RequestParam(value = "description", required = true) String description,
+            @RequestParam(value = "cost", required = true) double cost,
+            @RequestParam(value = "capacity", required = true) double capacity,
+            @RequestParam(value = "voltage", required = true) double voltage,
+            @RequestParam(value = "brand", required = true) String brand,
+            @RequestParam(value = "condition", required = true) String condition,
+            @RequestParam(value = "pickupAddress", required = true) String pickupAddress,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
+
         User seller = getCurrentUser();
         
-        // Kiểm tra gói còn hiệu lực
-        if (!sellerService.canPostBattery(seller.getUserid())) {
+        try {
+            // Kiểm tra gói còn hiệu lực
+            if (!sellerService.canPostBattery(seller.getUserid())) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("message", "Bạn đã hết lượt đăng pin hoặc gói đã hết hạn. Vui lòng mua/gia hạn gói.");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
+            // Convert List to Array
+            MultipartFile[] imageArray = images != null && !images.isEmpty()
+                    ? images.toArray(new MultipartFile[0])
+                    : null;
+
+            Product product = sellerService.createBatteryProduct(
+                    seller.getUserid(), productname, description, cost,
+                    capacity, voltage, brand, condition, pickupAddress, imageArray);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đăng pin thành công. Sản phẩm đã hiển thị ngay.");
+            response.put("productId", product.getProductid());
+            response.put("productName", product.getProductname());
+            response.put("status", product.getStatus());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
-            errorResponse.put("message", "Bạn đã hết lượt đăng pin hoặc gói đã hết hạn. Vui lòng mua/gia hạn gói.");
+            errorResponse.put("message", "Không thể đăng pin: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
-        
-        Product product = sellerService.createBatteryProduct(
-                seller.getUserid(), productname, description, cost, 
-                capacity, voltage, brand, condition, pickupAddress, images);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Đăng pin thành công. Sản phẩm đã hiển thị ngay.");
-        response.put("product", product);
-        
-        return ResponseEntity.ok(response);
     }
 
     //Quản lý sản phẩm pin - Chỉnh sửa hoặc gỡ khi chưa có đơn hàng

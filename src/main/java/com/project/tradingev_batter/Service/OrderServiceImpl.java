@@ -58,8 +58,17 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public Orders getOrderById(Long orderId) {
-        return orderRepository.findByIdWithDetails(orderId)
+        // Fetch order với details, contracts sẽ được lazy load sau nếu cần
+        // Không fetch cả 2 cùng lúc để tránh MultipleBagFetchException
+        Orders order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        // Khởi tạo contracts collection để tránh LazyInitializationException sau này
+        if (order.getContracts() != null) {
+            order.getContracts().size(); // Trigger lazy loading
+        }
+
+        return order;
     }
 
     @Override
