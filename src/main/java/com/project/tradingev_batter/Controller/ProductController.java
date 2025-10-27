@@ -36,7 +36,14 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
-@Tag(name = "Product APIs", description = "API quản lý sản phẩm - CRUD operations cho sản phẩm (xe và pin)")
+@Tag(name = "Product APIs (Public/Manager)",
+     description = " API này CHỈ dành cho:\n" +
+                   "- Guest/Public: XEM sản phẩm (GET)\n" +
+                   "- Manager: XÓA sản phẩm vi phạm (DELETE)\n\n" +
+                   " Seller KHÔNG dùng API này để đăng bài!\n" +
+                   " Seller đăng bài tại:\n" +
+                   "- POST /api/seller/products/cars (đăng xe)\n" +
+                   "- POST /api/seller/products/batteries (đăng pin)")
 public class ProductController {
 
     private final ProductService productService;
@@ -59,13 +66,17 @@ public class ProductController {
 
     @Operation(
             summary = "Lấy danh sách tất cả sản phẩm",
-            description = "Lấy tất cả sản phẩm trong hệ thống (cần quyền Admin/Manager)"
+            description = "Public API - Guest có thể xem tất cả sản phẩm đang bán (DANG_BAN)"
     )
     @GetMapping
     public ResponseEntity<List<Product>> getAllProducts() {
         return ResponseEntity.ok(productService.getAllProducts());
     }
 
+    @Operation(
+            summary = "Tìm kiếm và lọc sản phẩm",
+            description = "Public API - Tìm kiếm theo loại, hãng, năm, dung lượng, giá"
+    )
     @GetMapping("/search")
     public ResponseEntity<List<Product>> searchAndFilter(
             @RequestParam(required = false) String type,
@@ -82,7 +93,7 @@ public class ProductController {
 
     @Operation(
             summary = "Lấy chi tiết sản phẩm",
-            description = "Lấy thông tin chi tiết của một sản phẩm theo ID"
+            description = "Public API - Lấy thông tin chi tiết của một sản phẩm (tự động tăng view count)"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Thành công"),
@@ -107,6 +118,10 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Lấy thông tin Seller và sản phẩm của họ",
+            description = "Public API - Xem profile người bán và danh sách sản phẩm đang bán"
+    )
     @GetMapping("/seller/{sellerId}")
     public ResponseEntity<SellerInfoResponse> getSellerInfo(@PathVariable Long sellerId) {
         User seller = userService.getUserById(sellerId);
@@ -115,154 +130,30 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    // Create product with optional images
     @Operation(
-            summary = "Tạo sản phẩm mới",
-            description = "Tạo sản phẩm mới (xe hoặc pin) - Yêu cầu quyền Seller"
+            summary = "[MANAGER ONLY] Xóa sản phẩm vi phạm",
+            description = " Manager chỉ được XÓA sản phẩm vi phạm quy định.\n\n" +
+                    " Manager KHÔNG được:\n" +
+                    "- Tạo sản phẩm (chỉ Seller mới được đăng bài)\n" +
+                    "- Sửa sản phẩm (chỉ Seller chỉnh sửa bài của mình)\n\n" +
+                    " Manager được:\n" +
+                    "- Xóa sản phẩm vi phạm\n" +
+                    "- Duyệt/từ chối bài đăng tại /api/staff hoặc /api/manager"
     )
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Product> createProduct(
-            @RequestParam("productname") String productname,
-            @RequestParam("description") String description,
-            @RequestParam("cost") double cost,
-            @RequestParam("amount") int amount,
-            @RequestParam("status") String statusStr,
-            @RequestParam("model") String model,
-            @RequestParam("type") String type,
-            @RequestParam("specs") String specs,
-            @RequestParam(value = "images", required = false) MultipartFile[] images) {
-
-        // Convert DTO to Entity
-        Product product = new Product();
-        product.setProductname(productname);
-        product.setDescription(description);
-        product.setCost(cost);
-        product.setAmount(amount);
-
-        // Parse String to ProductStatus enum
-        try {
-            ProductStatus status = ProductStatus.valueOf(statusStr);
-            product.setStatus(status);
-        } catch (IllegalArgumentException e) {
-            // Default to CHO_DUYET if invalid status
-            product.setStatus(ProductStatus.CHO_DUYET);
-        }
-
-        product.setModel(model);
-        product.setType(type);
-        product.setSpecs(specs);
-        product.setCreatedat(new Date());
-
-        Product savedProduct = productService.createProduct(product);
-
-        // Upload images if provided
-        if (images != null && images.length > 0) {
-            System.out.println("Uploading " + images.length + " images for product " + savedProduct.getProductid());  // Log check if trigger
-            uploadImagesForProduct(savedProduct, images);
-        } else {
-            System.out.println("No images provided");  // Log if no files
-        }
-
-        savedProduct = productService.getProductById(savedProduct.getProductid());
-
-        return ResponseEntity.ok(savedProduct);
-    }
-
-    // Update product with optional new images
-    @Operation(
-            summary = "Cập nhật sản phẩm",
-            description = "Cập nhật thông tin sản phẩm - Chỉ owner hoặc Admin mới được phép"
-    )
-    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Product> updateProduct(
-            @PathVariable Long id,
-            @RequestParam("productname") String productname,
-            @RequestParam("description") String description,
-            @RequestParam("cost") double cost,
-            @RequestParam("amount") int amount,
-            @RequestParam("status") String statusStr,
-            @RequestParam("model") String model,
-            @RequestParam("type") String type,
-            @RequestParam("specs") String specs,
-            @RequestParam(value = "images", required = false) MultipartFile[] images) {
-
-        // Convert DTO to Entity
-        Product product = new Product();
-        product.setProductname(productname);
-        product.setDescription(description);
-        product.setCost(cost);
-        product.setAmount(amount);
-
-        // Parse String to ProductStatus enum
-        try {
-            ProductStatus status = ProductStatus.valueOf(statusStr);
-            product.setStatus(status);
-        } catch (IllegalArgumentException e) {
-            // Keep existing status if invalid
-            Product existing = productService.getProductById(id);
-            product.setStatus(existing.getStatus());
-        }
-
-        product.setModel(model);
-        product.setType(type);
-        product.setSpecs(specs);
-
-        Product updatedProduct = productService.updateProduct(id, product);
-
-        // Upload new images if provided
-        if (images != null && images.length > 0) {
-            System.out.println("Uploading " + images.length + " images for update product " + id);
-            uploadImagesForProduct(updatedProduct, images);
-        }
-
-        updatedProduct = productService.getProductById(id);
-
-        return ResponseEntity.ok(updatedProduct);
-    }
-
-    // Separate endpoint for uploading images to existing product
-    @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<String> uploadProductImages(
-            @PathVariable Long id,
-            @RequestParam("images") MultipartFile[] images) {
-
-        Product product = productService.getProductById(id);
-        System.out.println("Uploading separate " + images.length + " images for product " + id);  // Log
-        int uploadedCount = uploadImagesForProduct(product, images);
-
-        return ResponseEntity.ok("Successfully uploaded " + uploadedCount + " images");
-    }
-
-    @Operation(
-            summary = "Xóa sản phẩm",
-            description = "Xóa sản phẩm - Chỉ owner hoặc Admin mới được phép"
-    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Xóa thành công"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền"),
+            @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
+    })
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> deleteProduct(
-            @Parameter(description = "ID của sản phẩm", required = true)
+            @Parameter(description = "ID của sản phẩm cần xóa", required = true)
             @PathVariable Long id) {
         productService.deleteProduct(id);
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Product deleted successfully");
+        response.put("status", "success");
+        response.put("message", "Sản phẩm đã được xóa");
         return ResponseEntity.ok(response);
     }
-
-    // Private helper method to handle image uploads
-    private int uploadImagesForProduct(Product product, MultipartFile[] images) {
-        int uploadedCount = 0;
-        for (MultipartFile image : images) {
-            try {
-                String url = imageUploadService.uploadImage(image, "ev_products/" + product.getProductid());
-                product_img img = new product_img();
-                img.setUrl(url);
-                img.setProducts(product);
-                productImgRepository.save(img);
-                uploadedCount++;
-                System.out.println("Saved img URL: " + url);  // Log per image
-            } catch (IOException e) {
-                System.err.println("Upload fail for " + image.getOriginalFilename() + ": " + e.getMessage());  // Log error
-            }
-        }
-        return uploadedCount;
-    }
 }
+
