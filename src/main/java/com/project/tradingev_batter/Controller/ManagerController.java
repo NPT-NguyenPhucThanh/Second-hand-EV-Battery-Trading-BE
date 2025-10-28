@@ -78,7 +78,7 @@ public class ManagerController {
                 "isActive", user.isIsactive(),
                 "roles", user.getRoles().stream().map(Role::getRolename).toList(),
                 "createdAt", user.getCreated_at(),
-                "sellerUpgradeStatus", user.getSellerUpgradeStatus()
+                "sellerUpgradeStatus", user.getSellerUpgradeStatus() != null ? user.getSellerUpgradeStatus() : "N/A"
             ));
 
             return ResponseEntity.ok(response);
@@ -139,6 +139,82 @@ public class ManagerController {
     @GetMapping("/reports/system")
     public ResponseEntity<Map<String, Object>> getSystemReport() {
         return ResponseEntity.ok(managerService.getSystemReport());
+    }
+
+    // DISPUTE MANAGEMENT
+
+    @Operation(summary = "Lấy danh sách tất cả disputes",
+               description = "Lấy tất cả các khiếu nại/tranh chấp trong hệ thống")
+    @GetMapping("/disputes")
+    public ResponseEntity<Map<String, Object>> getAllDisputes() {
+        try {
+            List<Dispute> disputes = managerService.getAllDisputes();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("totalDisputes", disputes.size());
+            response.put("disputes", disputes.stream().map(dispute -> {
+                Map<String, Object> disputeData = new HashMap<>();
+                disputeData.put("disputeId", dispute.getDisputeid());
+
+                if (dispute.getOrder() != null) {
+                    Orders order = dispute.getOrder();
+                    disputeData.put("orderId", order.getOrderid());
+
+                    // Lấy buyer từ order
+                    User buyer = order.getUsers();
+                    if (buyer != null) {
+                        disputeData.put("buyerId", buyer.getUserid());
+                        disputeData.put("buyerName", buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername());
+                    }
+
+                    // Lấy seller từ detail đầu tiên
+                    if (order.getDetails() != null && !order.getDetails().isEmpty()) {
+                        User seller = order.getDetails().get(0).getProducts().getUsers();
+                        if (seller != null) {
+                            disputeData.put("sellerId", seller.getUserid());
+                            disputeData.put("sellerName", seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername());
+                        }
+                    }
+                }
+
+                disputeData.put("description", dispute.getDescription());
+                disputeData.put("status", dispute.getStatus() != null ? dispute.getStatus().name() : "N/A");
+                disputeData.put("resolution", dispute.getResolution());
+                disputeData.put("createdAt", dispute.getCreatedAt());
+                disputeData.put("resolvedBy", dispute.getManager() != null ? dispute.getManager().getUsername() : null);
+
+                return disputeData;
+            }).toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải disputes: " + e.getMessage()
+            ));
+        }
+    }
+
+    @Operation(summary = "Giải quyết dispute",
+               description = "Manager giải quyết khiếu nại và có thể hoàn tiền cho buyer")
+    @PostMapping("/disputes/{disputeId}/resolve")
+    public ResponseEntity<Map<String, Object>> resolveDispute(
+            @PathVariable Long disputeId,
+            @RequestParam String resolution,
+            @RequestBody(required = false) RefundRequest refundRequest) {
+        try {
+            managerService.resolveDispute(disputeId, resolution, refundRequest);
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Dispute đã được giải quyết"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể giải quyết dispute: " + e.getMessage()
+            ));
+        }
     }
 
     @Operation(summary = "Lấy thông tin tổng quan cho dashboard của quản lý",

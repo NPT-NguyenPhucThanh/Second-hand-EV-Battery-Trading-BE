@@ -32,6 +32,8 @@ public interface ManagerService {
 
     void approveOrder(Long orderId, boolean approved, String note);
 
+    List<com.project.tradingev_batter.Entity.Dispute> getAllDisputes(); // Lấy tất cả disputes
+
     void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest);
 
     // Seller Upgrade - Cập nhật signature

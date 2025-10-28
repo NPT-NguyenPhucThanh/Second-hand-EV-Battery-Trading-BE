@@ -79,18 +79,19 @@ public class ChatController {
         
         Chatroom chatroom = chatService.getOrCreateChatroom(buyerId, sellerId, request.getOrderId());
         
+        Map<String, Object> chatroomData = new HashMap<>();
+        chatroomData.put("chatroomId", chatroom.getChatid());
+        chatroomData.put("buyerId", chatroom.getBuyer().getUserid());
+        chatroomData.put("buyerName", chatroom.getBuyer().getDisplayname() != null ? chatroom.getBuyer().getDisplayname() : chatroom.getBuyer().getUsername());
+        chatroomData.put("sellerId", chatroom.getSeller().getUserid());
+        chatroomData.put("sellerName", chatroom.getSeller().getDisplayname() != null ? chatroom.getSeller().getDisplayname() : chatroom.getSeller().getUsername());
+        chatroomData.put("orderId", chatroom.getOrders() != null ? chatroom.getOrders().getOrderid() : null);
+        chatroomData.put("createdAt", chatroom.getCreatedat());
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("chatroom", Map.of(
-                "chatroomId", chatroom.getChatid(),
-                "buyerId", chatroom.getBuyer().getUserid(),
-                "buyerName", chatroom.getBuyer().getDisplayname() != null ? chatroom.getBuyer().getDisplayname() : chatroom.getBuyer().getUsername(),
-                "sellerId", chatroom.getSeller().getUserid(),
-                "sellerName", chatroom.getSeller().getDisplayname() != null ? chatroom.getSeller().getDisplayname() : chatroom.getSeller().getUsername(),
-                "orderId", chatroom.getOrders() != null ? chatroom.getOrders().getOrderid() : null,
-                "createdAt", chatroom.getCreatedat()
-        ));
-        
+        response.put("chatroom", chatroomData);
+
         return ResponseEntity.ok(response);
     }
 
@@ -114,14 +115,15 @@ public class ChatController {
             
             int unreadCount = chatService.getUnreadMessageCount(room.getChatid(), currentUser.getUserid());
             
-            return Map.of(
-                    "chatroomId", room.getChatid(),
-                    "otherUserId", otherUser.getUserid(),
-                    "otherUserName", otherUser.getDisplayname() != null ? otherUser.getDisplayname() : otherUser.getUsername(),
-                    "orderId", room.getOrders() != null ? room.getOrders().getOrderid() : null,
-                    "unreadCount", unreadCount,
-                    "createdAt", room.getCreatedat()
-            );
+            Map<String, Object> chatroomData = new HashMap<>();
+            chatroomData.put("chatroomId", room.getChatid());
+            chatroomData.put("otherUserId", otherUser.getUserid());
+            chatroomData.put("otherUserName", otherUser.getDisplayname() != null ? otherUser.getDisplayname() : otherUser.getUsername());
+            chatroomData.put("orderId", room.getOrders() != null ? room.getOrders().getOrderid() : null);
+            chatroomData.put("unreadCount", unreadCount);
+            chatroomData.put("createdAt", room.getCreatedat());
+
+            return chatroomData;
         }).collect(Collectors.toList()));
         
         return ResponseEntity.ok(response);

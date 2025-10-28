@@ -250,6 +250,13 @@ public class ManagerServiceImpl implements ManagerService {
         orderRepository.save(order);
     }
 
+
+    @Override
+    public List<Dispute> getAllDisputes() {
+
+        return disputeRepository.findAll();
+    }
+
     //Giải quyết tranh chấp
     //chuyển trạng thái tranh chấp sang RESOLVED, lưu resolution
     //cập nhật trạng thái đơn hàng sang DISPUTE_RESOLVED
