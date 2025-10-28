@@ -101,8 +101,11 @@ public class PaymentController {
             transaction.setOrders(order);
             transaction.setCreatedBy(user);
             transaction.setDescription(getTransactionDescription(order, TransactionType.valueOf(transactionType)));
-            transactionRepository.save(transaction);
-            
+
+            // LƯU TRANSACTION TRƯỚC KHI TẠO PAYMENT URL (quan trọng!)
+            transaction = transactionRepository.save(transaction);
+            log.info("Transaction saved with ID: {}, Code: {}", transaction.getTransid(), transactionCode);
+
             // Get IP address
             String ipAddress = getIpAddress(request);
             

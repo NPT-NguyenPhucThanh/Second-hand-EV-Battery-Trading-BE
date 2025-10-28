@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -51,7 +50,8 @@ public class VNPayService {
             vnp_Params.put("vnp_OrderType", vnPayConfig.getOrderType());
             vnp_Params.put("vnp_Locale", vnPayConfig.getLocale());
             vnp_Params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-            vnp_Params.put("vnp_IpnUrl", vnPayConfig.getIpnUrl());
+            // Tạm thời bỏ IPN URL vì ngrok miễn phí có warning page
+            // vnp_Params.put("vnp_IpnUrl", vnPayConfig.getIpnUrl());
             vnp_Params.put("vnp_IpAddr", ipAddress);
             vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
             vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
@@ -60,6 +60,15 @@ public class VNPayService {
             String queryUrl = buildQueryUrl(vnp_Params);
             String secureHash = hmacSHA512(vnPayConfig.getHashSecret(), queryUrl);
             
+            // Debug: Log để verify HashSecret
+            log.info("=== VNPAY DEBUG ===");
+            log.info("HashSecret: {}", vnPayConfig.getHashSecret());
+            log.info("Transaction Code: {}", transactionCode);
+            log.info("Amount: {} VND", vnpAmount);
+            log.info("Query URL (before hash): {}", queryUrl);
+            log.info("SecureHash (full): {}", secureHash);
+            log.info("==================");
+
             // Build final payment URL
             String paymentUrl = vnPayConfig.getApiUrl() + "?" + queryUrl + "&vnp_SecureHash=" + secureHash;
             
@@ -166,16 +175,13 @@ public class VNPayService {
             String fieldValue = params.get(fieldName);
             
             if (fieldValue != null && !fieldValue.isEmpty()) {
-                try {
-                    query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString()));
-                    query.append('=');
-                    query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                    
-                    if (itr.hasNext()) {
-                        query.append('&');
-                    }
-                } catch (UnsupportedEncodingException e) {
-                    log.error("Error encoding URL", e);
+                // Không encode fieldName, chỉ encode fieldValue
+                query.append(fieldName);
+                query.append('=');
+                query.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+
+                if (itr.hasNext()) {
+                    query.append('&');
                 }
             }
         }
