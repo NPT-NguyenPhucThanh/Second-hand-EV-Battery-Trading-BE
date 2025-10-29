@@ -55,12 +55,17 @@ public class DocuSealServiceImpl implements DocuSealService {
                 product.getProductid(), seller.getUserid());
 
         try {
+            log.info("Step 1: Building submission request");
             // 1. Tạo submission request
-            DocuSealSubmissionRequest request = buildProductListingRequest(product, seller, manager);
+            DocuSealSubmissionRequest request = buildProductListingRequest(product, seller);
+            log.info("Request built. Template ID: {}", request.getTemplate_id());
 
+            log.info("Step 2: Calling DocuSeal API");
             // 2. Gọi DocuSeal API
             DocuSealSubmissionResponse response = createSubmission(request);
+            log.info("DocuSeal API response received. Slug: {}", response.getSlug());
 
+            log.info("Step 3: Creating Contract entity");
             // 3. Tạo Contract entity và lưu DB
             Contracts contract = new Contracts();
             contract.setSignedat(new Date());
@@ -77,24 +82,31 @@ public class DocuSealServiceImpl implements DocuSealService {
             contract.setDocusealSubmissionId(response.getSlug());
             contract.setStartDate(new Date());
 
+            log.info("Step 4: Saving contract to DB");
             contractsRepository.save(contract);
+            log.info("Contract saved. ID: {}", contract.getContractid());
 
+            log.info("Step 5: Creating notification for seller");
             // 4. Tạo notification cho seller
             String signingUrl = getSigningUrlForSeller(response);
-            String notificationMessage = "Vui lòng ký hợp đồng điện tử để hoàn tất việc đăng bán xe " + product.getProductname();
-            if (signingUrl != null && !signingUrl.equals("N/A")) {
-                notificationMessage += ". Link ký: " + signingUrl;
-            }
 
-            createNotification(seller,
-                    "Hợp đồng đăng bán đã sẵn sàng",
-                    notificationMessage);
+            String notificationTitle = "Hợp đồng đăng bán đã sẵn sàng";
+            String notificationMessage = String.format(
+                "Vui lòng ký hợp đồng điện tử để hoàn tất việc đăng bán xe %s. " +
+                "Link ký: %s",
+                product.getProductname(),
+                signingUrl
+            );
 
-            log.info("Product listing contract created successfully. Submission ID: {}", response.getSlug());
+            createNotification(seller, notificationTitle, notificationMessage);
+
+            log.info("Product listing contract created successfully. Submission ID: {}, Signing URL: {}",
+                    response.getSlug(), signingUrl);
             return contract;
 
         } catch (Exception e) {
-            log.error("Error creating product listing contract", e);
+            log.error("Error creating product listing contract. Error type: {}, Message: {}",
+                    e.getClass().getName(), e.getMessage(), e);
             throw new RuntimeException("Không thể tạo hợp đồng đăng bán: " + e.getMessage(), e);
         }
     }
@@ -135,19 +147,23 @@ public class DocuSealServiceImpl implements DocuSealService {
             String orderInfo = "Đơn hàng #" + order.getOrderid() + " - Tổng tiền: " + order.getTotalfinal() + " VNĐ";
 
             String buyerSigningUrl = getSigningUrlForBuyer(response);
-            String buyerMessage = "Vui lòng ký hợp đồng mua xe. " + orderInfo;
-            if (buyerSigningUrl != null && !buyerSigningUrl.equals("N/A")) {
-                buyerMessage += ". Link ký: " + buyerSigningUrl;
-            }
+            String buyerTitle = "Hợp đồng mua xe đã sẵn sàng";
+            String buyerMessage = String.format(
+                "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
+                orderInfo,
+                buyerSigningUrl
+            );
 
             String sellerSigningUrl = getSigningUrlForSeller(response);
-            String sellerMessage = "Vui lòng ký hợp đồng bán xe. " + orderInfo;
-            if (sellerSigningUrl != null && !sellerSigningUrl.equals("N/A")) {
-                sellerMessage += ". Link ký: " + sellerSigningUrl;
-            }
+            String sellerTitle = "Hợp đồng bán xe đã sẵn sàng";
+            String sellerMessage = String.format(
+                "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
+                orderInfo,
+                sellerSigningUrl
+            );
 
-            createNotification(buyer, "Hợp đồng mua xe đã sẵn sàng", buyerMessage);
-            createNotification(seller, "Hợp đồng bán xe đã sẵn sàng", sellerMessage);
+            createNotification(buyer, buyerTitle, buyerMessage);
+            createNotification(seller, sellerTitle, sellerMessage);
 
             log.info("Sale transaction contract created successfully. Submission ID: {}", response.getSlug());
             return contract;
@@ -400,17 +416,67 @@ public class DocuSealServiceImpl implements DocuSealService {
     // ========================= PRIVATE HELPER METHODS ================================================================
 
     //Tạo submission request cho hợp đồng đăng bán
-    private DocuSealSubmissionRequest buildProductListingRequest(Product product, User seller, User manager) {
+    private DocuSealSubmissionRequest buildProductListingRequest(Product product, User seller) {
         // Format phone number với country code
         String sellerPhone = formatPhoneNumber(seller.getPhone());
 
-        // Tạo submitter cho Seller
+        // Lấy thông tin xe
+        String productName = product.getProductname() != null ? product.getProductname() : "N/A";
+        String productPrice = String.format("%,.0f VNĐ", product.getCost());
+        // Dùng description thay vì specs (Free plan không có Textarea)
+        String productDescription = product.getDescription() != null ? product.getDescription() : "N/A";
+        String productType = product.getType() != null ? product.getType() : "N/A";
+
+        // Thông tin seller
+        String sellerName = seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername();
+        String sellerEmail = seller.getEmail() != null ? seller.getEmail() : "N/A";
+        String sellerPhone_display = seller.getPhone() != null ? seller.getPhone() : "N/A";
+
+        // Tạo fields data để điền sẵn vào document
+        List<DocuSealSubmissionRequest.Field> fields = List.of(
+            DocuSealSubmissionRequest.Field.builder()
+                .name("product_name")
+                .default_value(productName)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("product_price")
+                .default_value(productPrice)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("product_description")  // Đổi từ product_specs
+                .default_value(productDescription)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("product_type")
+                .default_value(productType)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_name")
+                .default_value(sellerName)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_email")
+                .default_value(sellerEmail)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_phone")
+                .default_value(sellerPhone_display)
+                .build(),
+            // NOTE: Không gửi manager_name vì template không có field này
+            // Manager chỉ duyệt, không ký hợp đồng
+            DocuSealSubmissionRequest.Field.builder()
+                .name("contract_date")
+                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
+                .build()
+        );
+
+        // Tạo submitter cho Seller với fields data
         DocuSealSubmissionRequest.Submitter sellerSubmitter = DocuSealSubmissionRequest.Submitter.builder()
                 .role("Seller")
                 .email(seller.getEmail())
-                .name(seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername())
+                .name(sellerName)
                 .phone(sellerPhone)
-                .fields(buildProductListingFields(product, seller))
+                .fields(fields)
                 .build();
 
         // Tạo submission request
@@ -425,29 +491,97 @@ public class DocuSealServiceImpl implements DocuSealService {
 
     //Tạo submission request cho hợp đồng mua bán
     private DocuSealSubmissionRequest buildSaleTransactionRequest(Orders order, User buyer, User seller, String transactionLocation) {
-        // Lấy thông tin product từ order
-        Product product = order.getDetails().get(0).getProducts();
-
         // Format phone number với country code
         String buyerPhone = formatPhoneNumber(buyer.getPhone());
         String sellerPhone = formatPhoneNumber(seller.getPhone());
+
+        // Lấy thông tin order
+        String orderInfo = "Đơn hàng #" + order.getOrderid();
+        String totalAmount = String.format("%,.0f VNĐ", order.getTotalfinal());
+        String depositAmount = String.format("%,.0f VNĐ", order.getTotalfinal() * 0.1);
+        String finalPayment = String.format("%,.0f VNĐ", order.getTotalfinal() * 0.9);
+
+        // Thông tin buyer
+        String buyerName = buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername();
+        String buyerEmail = buyer.getEmail() != null ? buyer.getEmail() : "N/A";
+        String buyerPhone_display = buyer.getPhone() != null ? buyer.getPhone() : "N/A";
+
+        // Thông tin seller
+        String sellerName = seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername();
+        String sellerEmail = seller.getEmail() != null ? seller.getEmail() : "N/A";
+        String sellerPhone_display = seller.getPhone() != null ? seller.getPhone() : "N/A";
+
+        // Địa điểm giao dịch
+        String location = transactionLocation != null ? transactionLocation : "Theo thỏa thuận";
+
+        // Tạo fields data chung cho cả buyer và seller
+        List<DocuSealSubmissionRequest.Field> commonFields = List.of(
+            DocuSealSubmissionRequest.Field.builder()
+                .name("order_id")
+                .default_value(orderInfo)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("total_amount")
+                .default_value(totalAmount)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("deposit_amount")
+                .default_value(depositAmount)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("final_payment")
+                .default_value(finalPayment)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("buyer_name")
+                .default_value(buyerName)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("buyer_email")
+                .default_value(buyerEmail)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("buyer_phone")
+                .default_value(buyerPhone_display)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_name")
+                .default_value(sellerName)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_email")
+                .default_value(sellerEmail)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("seller_phone")
+                .default_value(sellerPhone_display)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("transaction_location")
+                .default_value(location)
+                .build(),
+            DocuSealSubmissionRequest.Field.builder()
+                .name("contract_date")
+                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
+                .build()
+        );
 
         // Tạo submitter cho Buyer
         DocuSealSubmissionRequest.Submitter buyerSubmitter = DocuSealSubmissionRequest.Submitter.builder()
                 .role("Buyer")
                 .email(buyer.getEmail())
-                .name(buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername())
+                .name(buyerName)
                 .phone(buyerPhone)
-                .fields(buildBuyerFields(order, buyer, product, transactionLocation))
+                .fields(commonFields)
                 .build();
 
         // Tạo submitter cho Seller
         DocuSealSubmissionRequest.Submitter sellerSubmitter = DocuSealSubmissionRequest.Submitter.builder()
                 .role("Seller")
                 .email(seller.getEmail())
-                .name(seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername())
+                .name(sellerName)
                 .phone(sellerPhone)
-                .fields(buildSellerFields(order, seller, product))
+                .fields(commonFields)
                 .build();
 
         // Tạo submission request
@@ -460,189 +594,38 @@ public class DocuSealServiceImpl implements DocuSealService {
                 .build();
     }
 
-    //Build fields cho hợp đồng đăng bán
-    private List<DocuSealSubmissionRequest.Field> buildProductListingFields(Product product, User seller) {
-        List<DocuSealSubmissionRequest.Field> fields = new ArrayList<>();
-
-        // Thông tin sản phẩm - Chỉ gửi các field có trong template DocuSeal
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_name")
-                .default_value(product.getProductname() != null ? product.getProductname() : "N/A")
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_model")
-                .default_value(product.getModel() != null ? product.getModel() : "N/A")
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_price")
-                .default_value(String.valueOf(product.getCost()))
-                .build());
-
-        // Thông tin seller
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_name")
-                .default_value(seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_email")
-                .default_value(seller.getEmail())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_phone")
-                .default_value(formatPhoneNumber(seller.getPhone()))
-                .build());
-
-        // Thông tin xe (nếu có)
-        if (product.getBrandcars() != null) {
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("license_plate")
-                    .default_value(product.getBrandcars().getLicensePlate() != null ? product.getBrandcars().getLicensePlate() : "N/A")
-                    .build());
-
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("brand")
-                    .default_value(product.getBrandcars().getBrand() != null ? product.getBrandcars().getBrand() : "N/A")
-                    .build());
-
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("year")
-                    .default_value(String.valueOf(product.getBrandcars().getYear()))
-                    .build());
-        }
-
-        // Ngày tạo hợp đồng
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("contract_date")
-                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
-                .build());
-
-        return fields;
-    }
-
-    //Build fields cho buyer trong hợp đồng mua bán
-    private List<DocuSealSubmissionRequest.Field> buildBuyerFields(Orders order, User buyer, Product product, String transactionLocation) {
-        List<DocuSealSubmissionRequest.Field> fields = new ArrayList<>();
-
-        // Thông tin buyer
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_name")
-                .default_value(buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_email")
-                .default_value(buyer.getEmail())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_phone")
-                .default_value(formatPhoneNumber(buyer.getPhone()))
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_address")
-                .default_value(order.getShippingaddress() != null ? order.getShippingaddress() : "N/A")
-                .build());
-
-        // Thông tin đơn hàng
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("order_id")
-                .default_value(String.valueOf(order.getOrderid()))
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("total_amount")
-                .default_value(String.valueOf(order.getTotalfinal()))
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("deposit_amount")
-                .default_value(String.valueOf(order.getTotalfinal() * 0.1))
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("remaining_amount")
-                .default_value(String.valueOf(order.getTotalfinal() * 0.9))
-                .build());
-
-        // Thông tin giao dịch
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("transaction_location")
-                .default_value(transactionLocation != null ? transactionLocation : "N/A")
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("contract_date")
-                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
-                .build());
-
-        return fields;
-    }
-
-    //Build fields cho seller trong hợp đồng mua bán
-    private List<DocuSealSubmissionRequest.Field> buildSellerFields(Orders order, User seller, Product product) {
-        List<DocuSealSubmissionRequest.Field> fields = new ArrayList<>();
-
-        // Thông tin seller
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_name")
-                .default_value(seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_email")
-                .default_value(seller.getEmail())
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("seller_phone")
-                .default_value(formatPhoneNumber(seller.getPhone()))
-                .build());
-
-        // Thông tin sản phẩm
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_name")
-                .default_value(product.getProductname() != null ? product.getProductname() : "N/A")
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_model")
-                .default_value(product.getModel() != null ? product.getModel() : "N/A")
-                .build());
-
-        fields.add(DocuSealSubmissionRequest.Field.builder()
-                .name("product_price")
-                .default_value(String.valueOf(product.getCost()))
-                .build());
-
-        // Thông tin xe (nếu có)
-        if (product.getBrandcars() != null) {
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("license_plate")
-                    .default_value(product.getBrandcars().getLicensePlate() != null ? product.getBrandcars().getLicensePlate() : "N/A")
-                    .build());
-
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("brand")
-                    .default_value(product.getBrandcars().getBrand() != null ? product.getBrandcars().getBrand() : "N/A")
-                    .build());
-
-            fields.add(DocuSealSubmissionRequest.Field.builder()
-                    .name("year")
-                    .default_value(String.valueOf(product.getBrandcars().getYear()))
-                    .build());
-        }
-
-        return fields;
-    }
 
     //Gọi DocuSeal API để tạo submission
     private DocuSealSubmissionResponse createSubmission(DocuSealSubmissionRequest request) {
         String url = docuSealConfig.getApi().getBaseUrl() + "/api/submissions";
+        log.info("Calling DocuSeal API: {}", url);
+
+        // Debug logging
+        log.info("=== DOCUSEAL REQUEST DEBUG ===");
+        log.info("Template ID: {}", request.getTemplate_id());
+        log.info("Submitters count: {}", request.getSubmitters() != null ? request.getSubmitters().size() : 0);
+
+        // Log từng submitter và fields
+        if (request.getSubmitters() != null) {
+            for (DocuSealSubmissionRequest.Submitter sub : request.getSubmitters()) {
+                log.info("Submitter: role={}, email={}, name={}",
+                        sub.getRole(), sub.getEmail(), sub.getName());
+
+                if (sub.getFields() != null && !sub.getFields().isEmpty()) {
+                    log.info("  Fields count: {}", sub.getFields().size());
+                    for (DocuSealSubmissionRequest.Field f : sub.getFields()) {
+                        log.info("    - Field: name='{}', value='{}'",
+                                f.getName(),
+                                f.getDefault_value() != null && f.getDefault_value().length() > 50
+                                    ? f.getDefault_value().substring(0, 50) + "..."
+                                    : f.getDefault_value());
+                    }
+                } else {
+                    log.warn("  ⚠️ No fields data for this submitter!");
+                }
+            }
+        }
+        log.info("=============================");
 
         HttpHeaders headers = createHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -650,9 +633,12 @@ public class DocuSealServiceImpl implements DocuSealService {
         HttpEntity<DocuSealSubmissionRequest> entity = new HttpEntity<>(request, headers);
 
         try {
+            log.info("Sending POST request to DocuSeal...");
             // DocuSeal API trả về Array of submissions
             ResponseEntity<DocuSealSubmissionResponse[]> response = docuSealRestTemplate.postForEntity(
                     url, entity, DocuSealSubmissionResponse[].class);
+
+            log.info("DocuSeal API responded with status: {}", response.getStatusCode());
 
             if (response.getStatusCode() != HttpStatus.OK && response.getStatusCode() != HttpStatus.CREATED) {
                 throw new RuntimeException("DocuSeal API returned status: " + response.getStatusCode());
@@ -660,21 +646,36 @@ public class DocuSealServiceImpl implements DocuSealService {
 
             DocuSealSubmissionResponse[] submissions = response.getBody();
             if (submissions == null || submissions.length == 0) {
+                log.error("DocuSeal API returned empty response");
                 throw new RuntimeException("DocuSeal API returned empty response");
             }
 
             // Lấy submission đầu tiên (vì chỉ tạo 1 submission)
             DocuSealSubmissionResponse result = submissions[0];
 
-            // Log để debug
-            log.info("DocuSeal submission created. Slug: {}, Submitters count: {}",
-                    result.getSlug(),
+            // Debug logging response
+            log.info("=== DOCUSEAL RESPONSE DEBUG ===");
+            log.info("Submission Slug: {}", result.getSlug());
+            log.info("Status: {}", result.getStatus());
+            log.info("Submission URL: {}", result.getSubmissionUrl());
+            log.info("Submitters count: {}",
                     result.getSubmitters() != null ? result.getSubmitters().size() : 0);
+
+            if (result.getSubmitters() != null && !result.getSubmitters().isEmpty()) {
+                for (DocuSealSubmissionResponse.SubmitterDetail sub : result.getSubmitters()) {
+                    log.info("  Submitter: role={}, email={}, status={}, url={}",
+                            sub.getRole(), sub.getEmail(), sub.getStatus(), sub.getUrl());
+                }
+            } else {
+                log.warn("⚠️ Response submitters array is empty - URLs will use fallback");
+            }
+            log.info("===============================");
 
             return result;
 
         } catch (Exception e) {
-            log.error("Error calling DocuSeal API", e);
+            log.error("Error calling DocuSeal API. Error type: {}, Message: {}",
+                    e.getClass().getName(), e.getMessage(), e);
             throw new RuntimeException("Lỗi khi gọi DocuSeal API: " + e.getMessage(), e);
         }
     }
@@ -694,20 +695,32 @@ public class DocuSealServiceImpl implements DocuSealService {
             return "N/A";
         }
 
-        if (response.getSubmitters() == null || response.getSubmitters().isEmpty()) {
-            log.warn("Submitters list is null or empty. Submission ID: {}", response.getSlug());
-            // Nếu có submission URL, sử dụng nó
-            if (response.getSubmissionUrl() != null) {
-                return response.getSubmissionUrl();
+        log.info("Getting signing URL for seller. Submission ID: {}, Submitters count: {}",
+                response.getSlug(),
+                response.getSubmitters() != null ? response.getSubmitters().size() : 0);
+
+        // Nếu có submitters, tìm seller
+        if (response.getSubmitters() != null && !response.getSubmitters().isEmpty()) {
+            String sellerUrl = response.getSubmitters().stream()
+                    .filter(s -> s != null && "Seller".equalsIgnoreCase(s.getRole()))
+                    .findFirst()
+                    .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
+                    .orElse(null);
+
+            if (sellerUrl != null && !sellerUrl.isEmpty()) {
+                log.info("Found seller signing URL: {}", sellerUrl);
+                return sellerUrl;
             }
-            return "N/A";
         }
 
-        return response.getSubmitters().stream()
-                .filter(s -> s != null && "Seller".equalsIgnoreCase(s.getRole()))
-                .findFirst()
-                .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
-                .orElse(response.getSubmissionUrl() != null ? response.getSubmissionUrl() : "N/A");
+        // Fallback: Sử dụng submission URL chung
+        if (response.getSubmissionUrl() != null && !response.getSubmissionUrl().isEmpty()) {
+            log.info("Using submission URL as fallback: {}", response.getSubmissionUrl());
+            return response.getSubmissionUrl();
+        }
+
+        log.warn("No signing URL found for submission: {}", response.getSlug());
+        return "https://docuseal.com/s/" + response.getSlug();
     }
 
     //Lấy signing URL cho buyer
@@ -717,20 +730,32 @@ public class DocuSealServiceImpl implements DocuSealService {
             return "N/A";
         }
 
-        if (response.getSubmitters() == null || response.getSubmitters().isEmpty()) {
-            log.warn("Submitters list is null or empty. Submission ID: {}", response.getSlug());
-            // Nếu có submission URL, sử dụng nó
-            if (response.getSubmissionUrl() != null) {
-                return response.getSubmissionUrl();
+        log.info("Getting signing URL for buyer. Submission ID: {}, Submitters count: {}",
+                response.getSlug(),
+                response.getSubmitters() != null ? response.getSubmitters().size() : 0);
+
+        // Nếu có submitters, tìm buyer
+        if (response.getSubmitters() != null && !response.getSubmitters().isEmpty()) {
+            String buyerUrl = response.getSubmitters().stream()
+                    .filter(s -> s != null && "Buyer".equalsIgnoreCase(s.getRole()))
+                    .findFirst()
+                    .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
+                    .orElse(null);
+
+            if (buyerUrl != null && !buyerUrl.isEmpty()) {
+                log.info("Found buyer signing URL: {}", buyerUrl);
+                return buyerUrl;
             }
-            return "N/A";
         }
 
-        return response.getSubmitters().stream()
-                .filter(s -> s != null && "Buyer".equalsIgnoreCase(s.getRole()))
-                .findFirst()
-                .map(DocuSealSubmissionResponse.SubmitterDetail::getUrl)
-                .orElse(response.getSubmissionUrl() != null ? response.getSubmissionUrl() : "N/A");
+        // Fallback: Sử dụng submission URL chung
+        if (response.getSubmissionUrl() != null && !response.getSubmissionUrl().isEmpty()) {
+            log.info("Using submission URL as fallback: {}", response.getSubmissionUrl());
+            return response.getSubmissionUrl();
+        }
+
+        log.warn("No signing URL found for submission: {}", response.getSlug());
+        return "https://docuseal.com/s/" + response.getSlug();
     }
 
     //Tạo notification
