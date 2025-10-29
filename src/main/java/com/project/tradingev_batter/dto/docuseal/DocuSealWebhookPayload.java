@@ -27,9 +27,9 @@ public class DocuSealWebhookPayload {
     @JsonProperty("event_type")
     private String eventType;
     
-    //Timestamp của event
-    private Long timestamp;
-    
+    //Timestamp của event (DocuSeal gửi dạng ISO string hoặc long)
+    private String timestamp;
+
     //Dữ liệu submission
     private SubmissionData data;
     

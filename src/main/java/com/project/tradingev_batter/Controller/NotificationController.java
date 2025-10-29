@@ -41,18 +41,23 @@ public class NotificationController {
 
         List<Notification> notifications = notificationService.getUserNotifications(currentUser.getUserid());
 
-        // Sap xep theo thoi gian moi nhat
-        notifications.sort((n1, n2) -> n2.getCreated_time().compareTo(n1.getCreated_time()));
+        // Filter out notifications với created_time null, sau đó sort
+        List<Notification> validNotifications = notifications.stream()
+                .filter(n -> n.getCreated_time() != null)
+                .sorted((n1, n2) -> n2.getCreated_time().compareTo(n1.getCreated_time())) // Mới nhất trước
+                .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        response.put("notifications", notifications.stream().map(n -> Map.of(
-                "notificationId", n.getNotificationid(),
-                "title", n.getTitle(),
-                "description", n.getDescription(),
-                "createdTime", n.getCreated_time()
-        )).collect(Collectors.toList()));
-        response.put("totalCount", notifications.size());
+        response.put("notifications", validNotifications.stream().map(n -> {
+            Map<String, Object> notifMap = new HashMap<>();
+            notifMap.put("notificationId", n.getNotificationid());
+            notifMap.put("title", n.getTitle() != null ? n.getTitle() : "");
+            notifMap.put("description", n.getDescription() != null ? n.getDescription() : "");
+            notifMap.put("createdTime", n.getCreated_time()); // Already filtered null above
+            return notifMap;
+        }).collect(Collectors.toList()));
+        response.put("totalCount", validNotifications.size());
 
         return ResponseEntity.ok(response);
     }

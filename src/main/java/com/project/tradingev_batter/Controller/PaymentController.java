@@ -434,7 +434,18 @@ public class PaymentController {
                         createContractAfterDeposit(order);
                         log.info("Contract created successfully for order {}", order.getOrderid());
                     } catch (Exception e) {
-                        log.error("Failed to create contract for order {}: {}", order.getOrderid(), e.getMessage());
+                        log.error("Failed to create DocuSeal contract: {}", e.getMessage(), e);
+                        // Gửi notification cho staff để tạo contract manual
+                        try {
+                            User buyer = order.getUsers();
+                            notificationService.createNotification(buyer.getUserid(),
+                                    "Lỗi tạo hợp đồng điện tử",
+                                    "Hệ thống không thể tạo hợp đồng tự động cho đơn hàng #" + order.getOrderid() +
+                                            ". Vui lòng liên hệ Staff để được hỗ trợ. Lỗi: " + e.getMessage());
+                        } catch (Exception notifEx) {
+                            log.error("Failed to send notification: {}", notifEx.getMessage());
+                        }
+                        // KHÔNG throw exception để không làm fail payment flow
                     }
                     break;
                 case FINAL_PAYMENT:
@@ -496,17 +507,8 @@ public class PaymentController {
             docuSealService.createSaleTransactionContract(order, buyer, seller, transactionLocation);
             log.info("Sale transaction contract created successfully for order {}", order.getOrderid());
 
-            // Tạo notification cho buyer
-            notificationService.createNotification(buyer.getUserid(), "Hợp đồng đã được tạo",
-                    "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
-                    ". Hợp đồng đã được gửi qua email.");
-
-            // Tạo notification cho seller
-            notificationService.createNotification(seller.getUserid(), "Hợp đồng đã được tạo",
-                    "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
-                    ". Hợp đồng đã được gửi qua email.");
-
-            log.info("Contract notifications sent for order {}", order.getOrderid());
+            // NOTE: Notifications đã được tạo tự động trong DocuSealServiceImpl.createSaleTransactionContract()
+            // với URLs ký cụ thể cho từng bên (buyer và seller)
 
         } catch (Exception e) {
             log.error("Failed to create DocuSeal contract: " + e.getMessage(), e);
