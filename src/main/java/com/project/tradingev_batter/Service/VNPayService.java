@@ -25,19 +25,19 @@ public class VNPayService {
     public String createPaymentUrl(double amount, String orderInfo, String transactionCode, String ipAddress) {
         try {
             log.info("Creating VNPay payment URL for transaction: {}, amount: {}", transactionCode, amount);
-            
+
             // Convert amount to VNPay format (x100, no decimal)
             long vnpAmount = (long) (amount * 100);
-            
+
             // Create timestamp
             SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
             String vnp_CreateDate = formatter.format(new Date());
-            
+
             // Calculate expiry time (1 hour from now)
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
             calendar.add(Calendar.MINUTE, vnPayConfig.getTimeoutMinutes());
             String vnp_ExpireDate = formatter.format(calendar.getTime());
-            
+
             // Build parameters
             Map<String, String> vnp_Params = new HashMap<>();
             vnp_Params.put("vnp_Version", vnPayConfig.getVersion());
@@ -50,16 +50,16 @@ public class VNPayService {
             vnp_Params.put("vnp_OrderType", vnPayConfig.getOrderType());
             vnp_Params.put("vnp_Locale", vnPayConfig.getLocale());
             vnp_Params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-            // Tạm thời bỏ IPN URL vì ngrok miễn phí có warning page
-            // vnp_Params.put("vnp_IpnUrl", vnPayConfig.getIpnUrl());
+            // TẠM TẮT IPN URL - VNPay có thể block ngrok domain
+            // vnp_Params.put("vnp_IpnUrl", vnPayConfig.getIpnUrl()); // deploy thì uncomment
             vnp_Params.put("vnp_IpAddr", ipAddress);
             vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
             vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
-            
+
             // Build query string và tạo secure hash
             String queryUrl = buildQueryUrl(vnp_Params);
             String secureHash = hmacSHA512(vnPayConfig.getHashSecret(), queryUrl);
-            
+
             // Debug: Log để verify HashSecret
             log.info("=== VNPAY DEBUG ===");
             log.info("HashSecret: {}", vnPayConfig.getHashSecret());
@@ -71,10 +71,10 @@ public class VNPayService {
 
             // Build final payment URL
             String paymentUrl = vnPayConfig.getApiUrl() + "?" + queryUrl + "&vnp_SecureHash=" + secureHash;
-            
+
             log.info("Payment URL created successfully for transaction: {}", transactionCode);
             return paymentUrl;
-            
+
         } catch (Exception e) {
             log.error("Error creating payment URL for transaction: {}", transactionCode, e);
             throw new RuntimeException("Không thể tạo link thanh toán: " + e.getMessage());
@@ -86,34 +86,34 @@ public class VNPayService {
         try {
             // Lấy secure hash từ VNPay
             String vnp_SecureHash = params.get("vnp_SecureHash");
-            
+
             if (vnp_SecureHash == null || vnp_SecureHash.isEmpty()) {
                 log.warn("Missing vnp_SecureHash in callback");
                 return false;
             }
-            
+
             // Remove secure hash và sign type từ params để tính lại hash
             Map<String, String> verifyParams = new HashMap<>(params);
             verifyParams.remove("vnp_SecureHash");
             verifyParams.remove("vnp_SecureHashType");
-            
+
             // Build query string từ params (đã sort)
             String queryUrl = buildQueryUrl(verifyParams);
-            
+
             // Tính hash với secret key
             String calculatedHash = hmacSHA512(vnPayConfig.getHashSecret(), queryUrl);
-            
+
             // So sánh hash
             boolean isValid = calculatedHash.equalsIgnoreCase(vnp_SecureHash);
-            
+
             if (!isValid) {
                 log.warn("Invalid secure hash. Expected: {}, Got: {}", calculatedHash, vnp_SecureHash);
             } else {
                 log.info("Callback verified successfully for transaction: {}", params.get("vnp_TxnRef"));
             }
-            
+
             return isValid;
-            
+
         } catch (Exception e) {
             log.error("Error verifying callback", e);
             return false;
@@ -123,7 +123,7 @@ public class VNPayService {
     //PARSE VNPAY RESPONSE - Parse response từ VNPay thành Map
     public Map<String, String> parseVNPayResponse(Map<String, String> params) {
         Map<String, String> result = new HashMap<>();
-        
+
         result.put("transactionCode", params.get("vnp_TxnRef"));
         result.put("vnpayTransactionNo", params.get("vnp_TransactionNo"));
         result.put("amount", params.get("vnp_Amount")); // Nhớ chia 100
@@ -132,7 +132,7 @@ public class VNPayService {
         result.put("responseCode", params.get("vnp_ResponseCode"));
         result.put("transactionStatus", params.get("vnp_TransactionStatus"));
         result.put("paymentDate", params.get("vnp_PayDate"));
-        
+
         return result;
     }
 
@@ -157,7 +157,7 @@ public class VNPayService {
         messages.put("75", "Ngân hàng thanh toán đang bảo trì.");
         messages.put("79", "Giao dịch không thành công do: KH nhập sai mật khẩu thanh toán quá số lần quy định. Xin quý khách vui lòng thực hiện lại giao dịch");
         messages.put("99", "Các lỗi khác (lỗi còn lại, không có trong danh sách mã lỗi đã liệt kê)");
-        
+
         return messages.getOrDefault(responseCode, "Lỗi không xác định");
     }
 
@@ -166,14 +166,14 @@ public class VNPayService {
         // Sort params by key (VNPay yêu cầu)
         List<String> fieldNames = new ArrayList<>(params.keySet());
         Collections.sort(fieldNames);
-        
+
         StringBuilder query = new StringBuilder();
         Iterator<String> itr = fieldNames.iterator();
-        
+
         while (itr.hasNext()) {
             String fieldName = itr.next();
             String fieldValue = params.get(fieldName);
-            
+
             if (fieldValue != null && !fieldValue.isEmpty()) {
                 // Không encode fieldName, chỉ encode fieldValue
                 query.append(fieldName);
@@ -185,7 +185,7 @@ public class VNPayService {
                 }
             }
         }
-        
+
         return query.toString();
     }
 
@@ -196,17 +196,17 @@ public class VNPayService {
             Mac hmac512 = Mac.getInstance("HmacSHA512");
             SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
             hmac512.init(secretKey);
-            
+
             byte[] hashBytes = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            
+
             // Convert to hex string
             StringBuilder result = new StringBuilder();
             for (byte b : hashBytes) {
                 result.append(String.format("%02x", b));
             }
-            
+
             return result.toString();
-            
+
         } catch (Exception e) {
             log.error("Error generating HMAC SHA512", e);
             throw new RuntimeException("Lỗi tạo chữ ký bảo mật");
@@ -224,7 +224,7 @@ public class VNPayService {
     public Map<String, String> mockPaymentSuccess(String transactionCode, double amount) {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
         String payDate = formatter.format(new Date());
-        
+
         Map<String, String> mockResponse = new HashMap<>();
         mockResponse.put("vnp_TxnRef", transactionCode);
         mockResponse.put("vnp_TransactionNo", "MOCK" + System.currentTimeMillis());
@@ -234,7 +234,7 @@ public class VNPayService {
         mockResponse.put("vnp_ResponseCode", "00");
         mockResponse.put("vnp_TransactionStatus", "00");
         mockResponse.put("vnp_PayDate", payDate);
-        
+
         log.info("Mock payment success for transaction: {}", transactionCode);
         return mockResponse;
     }

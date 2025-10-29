@@ -63,8 +63,9 @@ public class OrderServiceImpl implements OrderService {
         Orders order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Khởi tạo contracts collection để tránh LazyInitializationException sau này
+        // Khởi tạo contracts collection để tránh LazyInitializationException
         if (order.getContracts() != null) {
+            //noinspection ResultOfMethodCallIgnored
             order.getContracts().size(); // Trigger lazy loading
         }
 
@@ -106,9 +107,10 @@ public class OrderServiceImpl implements OrderService {
         
         // Set status dựa trên loại sản phẩm
         if ("Car EV".equals(product.getType())) {
-            order.setStatus(OrderStatus.CHO_DAT_COC); // Chờ đặt cọc 10%
+            order.setStatus(OrderStatus.CHO_DAT_COC); // Xe: Chờ đặt cọc 10%
         } else {
-            order.setStatus(OrderStatus.CHO_XAC_NHAN); // Pin chờ xác nhận
+            // Pin: Chờ thanh toán 100% (không cần chờ xác nhận)
+            order.setStatus(OrderStatus.CHO_THANH_TOAN);
             // Tính phí ship cho pin
             double shippingFee = calculateShippingFee(shippingAddress);
             order.setShippingfee(shippingFee);
@@ -126,9 +128,11 @@ public class OrderServiceImpl implements OrderService {
         orderDetailRepository.save(detail);
         
         // Tạo notification
-        createNotification(buyer, "Đặt hàng thành công", 
-                "Đơn hàng #" + order.getOrderid() + " đã được tạo thành công.");
-        
+        String message = "Car EV".equals(product.getType()) ?
+                "Đơn hàng #" + order.getOrderid() + " đã được tạo. Vui lòng đặt cọc 10%." :
+                "Đơn hàng #" + order.getOrderid() + " đã được tạo. Vui lòng thanh toán.";
+        createNotification(buyer, "Đặt hàng thành công", message);
+
         return order;
     }
 

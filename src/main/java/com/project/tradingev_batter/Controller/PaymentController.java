@@ -77,7 +77,7 @@ public class PaymentController {
                     .orElseThrow(() -> new RuntimeException("Order not found"));
             
             // Kiểm tra quyền sở hữu
-            if (order.getUsers().getUserid() != user.getUserid()) {
+            if (!order.getUsers().getUserid().equals(user.getUserid())) {
                 return ResponseEntity.badRequest().body(Map.of(
                     "status", "error",
                     "message", "Bạn không có quyền thanh toán đơn hàng này"
@@ -172,36 +172,39 @@ public class PaymentController {
             // Parse response
             Map<String, String> vnpayData = vnPayService.parseVNPayResponse(params);
             String transactionCode = vnpayData.get("transactionCode");
-            String responseCode = vnpayData.get("responseCode");
-            
+
             // Find transaction
             Transaction transaction = transactionRepository.findByTransactionCode(transactionCode)
                     .orElseThrow(() -> new RuntimeException("Transaction not found"));
             
-            // Update transaction
-            updateTransactionFromVNPay(transaction, vnpayData);
-            
-            // Update order status
-            Orders order = transaction.getOrders();
-            updateOrderStatusAfterPayment(order, transaction);
-            
+            // XỬ LÝ STATUS NGAY TẠI ĐÂY (không cần chờ IPN)
+            if (transaction.getStatus() == TransactionStatus.PENDING) {
+                // Update transaction
+                updateTransactionFromVNPay(transaction, vnpayData);
+
+                // Update order status
+                Orders order = transaction.getOrders();
+                updateOrderStatusAfterPayment(order, transaction);
+
+                log.info("Transaction processed via Return URL: {}", transactionCode);
+            } else {
+                log.info("Transaction already processed: {}", transactionCode);
+            }
+
             // Build response
             Map<String, Object> response = new HashMap<>();
-            response.put("status", vnPayService.isPaymentSuccess(responseCode) ? "success" : "failed");
-            response.put("message", vnPayService.getResponseMessage(responseCode));
+            response.put("status", vnPayService.isPaymentSuccess(vnpayData.get("responseCode")) ? "success" : "failed");
+            response.put("message", vnPayService.getResponseMessage(vnpayData.get("responseCode")));
             response.put("transactionCode", transactionCode);
             response.put("amount", Double.parseDouble(vnpayData.get("amount")) / 100);
             response.put("bankCode", vnpayData.get("bankCode"));
             response.put("cardType", vnpayData.get("cardType"));
             response.put("paymentDate", vnpayData.get("paymentDate"));
-            response.put("orderId", order.getOrderid());
-            response.put("orderStatus", order.getStatus());
-            
-            // NOTE CHO FE: Hiển thị trang kết quả thanh toán
-            // FE nên có route: /payment/result?transactionCode=xxx
-            
+            response.put("orderId", transaction.getOrders().getOrderid());
+            response.put("orderStatus", transaction.getOrders().getStatus());
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("Error processing VNPay return", e);
             return ResponseEntity.status(500).body(Map.of(
@@ -468,57 +471,50 @@ public class PaymentController {
      * 4. Notify manager để duyệt
      */
     private void createContractAfterDeposit(Orders order) {
-        // Lấy thông tin từ order
-        User buyer = order.getUsers();
-        Order_detail detail = order.getDetails().get(0);
-        Product product = detail.getProducts();
-        User seller = product.getUsers();
-
-        // Tạo hợp đồng mua bán xe
-        String contractType = "SALE_TRANSACTION";
-        String transactionLocation = order.getTransactionLocation() != null ?
-                order.getTransactionLocation() : "Chưa xác định";
-
-        Map<String, Object> contractData = new HashMap<>();
-        contractData.put("buyerName", buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername());
-        contractData.put("buyerEmail", buyer.getEmail());
-        contractData.put("buyerPhone", buyer.getPhone() != null ? buyer.getPhone() : "N/A");
-        contractData.put("sellerName", seller.getDisplayname() != null ? seller.getDisplayname() : seller.getUsername());
-        contractData.put("sellerEmail", seller.getEmail());
-        contractData.put("sellerPhone", seller.getPhone() != null ? seller.getPhone() : "N/A");
-        contractData.put("productName", product.getProductname());
-        contractData.put("productPrice", product.getCost());
-        contractData.put("transactionLocation", transactionLocation);
-        contractData.put("depositAmount", order.getTotalamount() * 0.10);
-        contractData.put("orderId", order.getOrderid());
-
-        // Gọi DocuSealService để tạo hợp đồng
         try {
+            // Fetch order với details để tránh lazy initialization
+            order = orderRepository.findByIdWithDetails(order.getOrderid())
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            // Lấy thông tin từ order
+            User buyer = order.getUsers();
+
+            if (order.getDetails() == null || order.getDetails().isEmpty()) {
+                log.error("Order {} has no details", order.getOrderid());
+                throw new RuntimeException("Order has no details");
+            }
+
+            Order_detail detail = order.getDetails().get(0);
+            Product product = detail.getProducts();
+            User seller = product.getUsers();
+
+            // Tạo hợp đồng mua bán xe
+            String transactionLocation = order.getTransactionLocation() != null ?
+                    order.getTransactionLocation() : "Chưa xác định";
+
+            // Gọi DocuSealService để tạo hợp đồng
             docuSealService.createSaleTransactionContract(order, buyer, seller, transactionLocation);
             log.info("Sale transaction contract created successfully for order {}", order.getOrderid());
+
+            // Tạo notification cho buyer
+            notificationService.createNotification(buyer.getUserid(), "Hợp đồng đã được tạo",
+                    "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
+                    ". Hợp đồng đã được gửi qua email.");
+
+            // Tạo notification cho seller
+            notificationService.createNotification(seller.getUserid(), "Hợp đồng đã được tạo",
+                    "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
+                    ". Hợp đồng đã được gửi qua email.");
+
+            log.info("Contract notifications sent for order {}", order.getOrderid());
+
         } catch (Exception e) {
             log.error("Failed to create DocuSeal contract: " + e.getMessage(), e);
             // Không throw exception để không block flow thanh toán
             // Có thể retry sau hoặc tạo manual
         }
-
-        // Tạo notification cho buyer
-        notificationService.createNotification(buyer.getUserid(), "Hợp đồng đã được tạo",
-                "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
-                ". Hợp đồng đã được gửi qua email.");
-
-        // Tạo notification cho seller
-        notificationService.createNotification(seller.getUserid(), "Hợp đồng đã được tạo",
-                "Vui lòng ký hợp đồng cho đơn hàng #" + order.getOrderid() +
-                ". Hợp đồng đã được gửi qua email.");
-
-        log.info("Contract notifications sent for order {}", order.getOrderid());
     }
 
-    private void createNotification(User user, String title, String description) {
-        notificationService.createNotification(user.getUserid(), title, description);
-        log.info("Notification created: {} - {} for user {}", title, description, user.getUserid());
-    }
 
     private String getIpAddress(HttpServletRequest request) {
         String ipAddress = request.getHeader("X-Forwarded-For");
