@@ -44,10 +44,8 @@ public class DocuSealServiceImpl implements DocuSealService {
         this.productRepository = productRepository;
     }
 
-    /**
-     * Tạo hợp đồng đăng bán sản phẩm
-     * Flow: Seller ký với Hệ thống sau khi xe đạt kiểm định
-     */
+    //Tạo hợp đồng đăng bán sản phẩm
+    //Flow: Seller ký với Hệ thống sau khi xe đạt kiểm định
     @Override
     @Transactional
     public Contracts createProductListingContract(Product product, User seller, User manager) {
@@ -81,8 +79,8 @@ public class DocuSealServiceImpl implements DocuSealService {
             contract.setSignedMethod("DOCUSEAL");
             contract.setStatus(false); // Chờ ký
 
-            // Lưu thông tin DocuSeal
-            contract.setDocusealSubmissionId(response.getSlug());
+            // Lưu thông tin DocuSeal - Dùng numeric ID để query API
+            contract.setDocusealSubmissionId(String.valueOf(response.getId()));
             contract.setStartDate(new Date());
 
             log.info("Step 4: Saving contract to DB");
@@ -103,8 +101,8 @@ public class DocuSealServiceImpl implements DocuSealService {
 
             createNotification(seller, notificationTitle, notificationMessage);
 
-            log.info("Product listing contract created successfully. Submission ID: {}, Signing URL: {}",
-                    response.getSlug(), signingUrl);
+            log.info("Product listing contract created successfully. Submission ID: {}, Slug: {}, Signing URL: {}",
+                    response.getId(), response.getSlug(), signingUrl);
             return contract;
 
         } catch (Exception e) {
@@ -129,7 +127,6 @@ public class DocuSealServiceImpl implements DocuSealService {
             // 2. Gọi DocuSeal API
             DocuSealSubmissionResponse response = createSubmission(request);
 
-            // LƯU Ý: Response từ createSubmission đã có submitters với URLs
             // DocuSeal trả về submitters ngay sau khi tạo submission thành công
             log.info("Submission created. ID: {}, Slug: {}, Submitters count: {}",
                     response.getId(),
@@ -156,6 +153,7 @@ public class DocuSealServiceImpl implements DocuSealService {
             contract.setContractType("SALE_TRANSACTION");
             contract.setSignedMethod("DOCUSEAL");
             contract.setStatus(false); // Chờ ký
+            // Lưu SLUG để query API (DocuSeal yêu cầu dùng slug, không phải numeric ID)
             contract.setDocusealSubmissionId(response.getSlug());
             contract.setStartDate(new Date());
 
@@ -183,7 +181,8 @@ public class DocuSealServiceImpl implements DocuSealService {
             createNotification(buyer, buyerTitle, buyerMessage);
             createNotification(seller, sellerTitle, sellerMessage);
 
-            log.info("Sale transaction contract created successfully. Submission ID: {}", response.getSlug());
+            log.info("Sale transaction contract created successfully. Submission ID: {}, Slug: {}",
+                    response.getId(), response.getSlug());
             return contract;
 
         } catch (Exception e) {
@@ -192,12 +191,12 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
     }
 
-    //Lấy thông tin submission từ DocuSeal (sử dụng numeric ID)
+    //Lấy thông tin submission từ DocuSeal bằng slug
     @Override
-    public DocuSealSubmissionResponse getSubmission(String submissionId) {
-        log.info("Getting submission by ID: {}", submissionId);
+    public DocuSealSubmissionResponse getSubmission(String submissionSlug) {
+        log.info("Getting submission by slug: {}", submissionSlug);
 
-        String url = docuSealConfig.getApi().getBaseUrl() + "/api/submissions/" + submissionId;
+        String url = docuSealConfig.getApi().getBaseUrl() + "/api/submissions/" + submissionSlug;
 
         try {
             HttpHeaders headers = createHeaders();
@@ -209,7 +208,7 @@ public class DocuSealServiceImpl implements DocuSealService {
             return response.getBody();
 
         } catch (Exception e) {
-            log.error("Error getting submission by ID: {}", submissionId, e);
+            log.error("Error getting submission by slug: {}", submissionSlug, e);
             throw new RuntimeException("Không thể lấy thông tin submission: " + e.getMessage(), e);
         }
     }
@@ -232,6 +231,10 @@ public class DocuSealServiceImpl implements DocuSealService {
         }
 
         switch (eventType) {
+            case "submission.created":
+                handleSubmissionCreated(contract, data);
+                break;
+
             case "submission.completed":
                 handleSubmissionCompleted(contract, data);
                 break;
@@ -246,6 +249,63 @@ public class DocuSealServiceImpl implements DocuSealService {
 
             default:
                 log.info("Unhandled event type: {}", eventType);
+        }
+    }
+
+    //Xử lý khi submission được tạo xong (DocuSeal đã xử lý xong submitters)
+    private void handleSubmissionCreated(Contracts contract, DocuSealWebhookPayload.SubmissionData data) {
+        log.info("Submission created webhook received for contract: {}", contract.getContractid());
+
+        // Webhook data chứa submitters với signing URLs
+        if (data.getSubmitters() == null || data.getSubmitters().isEmpty()) {
+            log.warn("Submitters array is empty in webhook data");
+            return;
+        }
+
+        // Extract signing URLs từ webhook data
+        String buyerUrl = null;
+        String sellerUrl = null;
+
+        for (DocuSealWebhookPayload.SubmitterInfo submitter : data.getSubmitters()) {
+            if ("Buyer".equalsIgnoreCase(submitter.getRole())) {
+                buyerUrl = "https://docuseal.com/s/" + submitter.getSlug();
+                log.info("Buyer signing URL from webhook: {}", buyerUrl);
+            } else if ("Seller".equalsIgnoreCase(submitter.getRole())) {
+                sellerUrl = "https://docuseal.com/s/" + submitter.getSlug();
+                log.info("Seller signing URL from webhook: {}", sellerUrl);
+            }
+        }
+
+        // Update notifications với signing URLs mới
+        if ("SALE_TRANSACTION".equals(contract.getContractType())) {
+            String orderInfo = "Đơn hàng #" + contract.getOrders().getOrderid() +
+                              " - Tổng tiền: " + contract.getOrders().getTotalfinal() + " VNĐ";
+
+            // Update buyer notification
+            if (buyerUrl != null && contract.getBuyers() != null) {
+                String buyerMessage = String.format(
+                    "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
+                    orderInfo,
+                    buyerUrl
+                );
+                createNotification(contract.getBuyers(),
+                                 "Hợp đồng mua xe đã sẵn sàng",
+                                 buyerMessage);
+                log.info("✓ Updated buyer notification with signing URL");
+            }
+
+            // Update seller notification
+            if (sellerUrl != null && contract.getSellers() != null) {
+                String sellerMessage = String.format(
+                    "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
+                    orderInfo,
+                    sellerUrl
+                );
+                createNotification(contract.getSellers(),
+                                 "Hợp đồng bán xe đã sẵn sàng",
+                                 sellerMessage);
+                log.info("✓ Updated seller notification with signing URL");
+            }
         }
     }
 
@@ -706,14 +766,15 @@ public class DocuSealServiceImpl implements DocuSealService {
         return headers;
     }
 
-    //Lấy signing URL cho seller (sử dụng submitter slug)
+    //Lấy signing URL cho seller (sử dụng submitter slug hoặc query từ DocuSeal API)
     private String getSigningUrlForSeller(DocuSealSubmissionResponse response) {
         if (response == null) {
             log.warn("Response is null, cannot get signing URL for seller");
             return "N/A";
         }
 
-        log.info("Getting signing URL for seller. Submission ID: {}, Submitters count: {}",
+        log.info("Getting signing URL for seller. Submission slug: {}, ID: {}, Submitters count: {}",
+                response.getSlug(),
                 response.getId(),
                 response.getSubmitters() != null ? response.getSubmitters().size() : 0);
 
@@ -727,32 +788,34 @@ public class DocuSealServiceImpl implements DocuSealService {
             if (seller != null) {
                 // Ưu tiên: Sử dụng URL từ API (nếu có)
                 if (seller.getUrl() != null && !seller.getUrl().isEmpty()) {
-                    log.info("Found seller signing URL from API: {}", seller.getUrl());
+                    log.info("✓ Found seller signing URL from API: {}", seller.getUrl());
                     return seller.getUrl();
                 }
 
                 // Fallback: Tạo URL từ submitter slug
                 if (seller.getSlug() != null && !seller.getSlug().isEmpty()) {
                     String urlFromSlug = "https://docuseal.com/s/" + seller.getSlug();
-                    log.info("Generated seller signing URL from slug: {}", urlFromSlug);
+                    log.info("✓ Generated seller signing URL from submitter slug: {}", urlFromSlug);
                     return urlFromSlug;
                 }
             }
         }
 
-        // Fallback cuối cùng: submission slug (chung cho tất cả)
-        log.warn("Could not find seller-specific URL. Using submission slug as fallback.");
-        return "https://docuseal.com/s/" + response.getSlug();
+        // DocuSeal trả về submitters array empty ngay sau khi tạo
+        // Seller URL sẽ được cập nhật qua webhook sau (submission.created event)
+        log.warn("Submitters array is empty. Seller URL will be updated via webhook after DocuSeal processes the submission.");
+        return "Đang xử lý... Vui lòng kiểm tra email của bạn để nhận link ký.";
     }
 
-    //Lấy signing URL cho buyer (sử dụng submitter slug)
+    //Lấy signing URL cho buyer (sử dụng submitter slug hoặc query từ DocuSeal API)
     private String getSigningUrlForBuyer(DocuSealSubmissionResponse response) {
         if (response == null) {
             log.warn("Response is null, cannot get signing URL for buyer");
             return "N/A";
         }
 
-        log.info("Getting signing URL for buyer. Submission ID: {}, Submitters count: {}",
+        log.info("Getting signing URL for buyer. Submission slug: {}, ID: {}, Submitters count: {}",
+                response.getSlug(),
                 response.getId(),
                 response.getSubmitters() != null ? response.getSubmitters().size() : 0);
 
@@ -764,23 +827,24 @@ public class DocuSealServiceImpl implements DocuSealService {
                     .orElse(null);
 
             if (buyer != null) {
-                // Ưu tiên: Sử dụng URL từ API (nếu có)
+                // Ưu tiên sử dụng URL từ API
                 if (buyer.getUrl() != null && !buyer.getUrl().isEmpty()) {
-                    log.info("Found buyer signing URL from API: {}", buyer.getUrl());
+                    log.info("✓ Found buyer signing URL from API: {}", buyer.getUrl());
                     return buyer.getUrl();
                 }
 
                 // Fallback: Tạo URL từ submitter slug
                 if (buyer.getSlug() != null && !buyer.getSlug().isEmpty()) {
                     String urlFromSlug = "https://docuseal.com/s/" + buyer.getSlug();
-                    log.info("Generated buyer signing URL from slug: {}", urlFromSlug);
+                    log.info("✓ Generated buyer signing URL from submitter slug: {}", urlFromSlug);
                     return urlFromSlug;
                 }
             }
         }
 
-        // Fallback cuối cùng: submission slug (chung cho tất cả)
-        log.warn("Could not find buyer-specific URL. Using submission slug as fallback.");
+        // DocuSeal trả về submitters array empty ngay sau khi tạo
+        // Dùng submission slug làm fallback (DocuSeal sẽ redirect đến buyer URL)
+        log.warn("Submitters array is empty. Using submission slug as fallback (DocuSeal will auto-redirect to buyer).");
         return "https://docuseal.com/s/" + response.getSlug();
     }
 

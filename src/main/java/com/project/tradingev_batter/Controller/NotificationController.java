@@ -43,8 +43,14 @@ public class NotificationController {
 
         // Filter out notifications với created_time null, sau đó sort
         List<Notification> validNotifications = notifications.stream()
-                .filter(n -> n.getCreated_time() != null)
-                .sorted((n1, n2) -> n2.getCreated_time().compareTo(n1.getCreated_time())) // Mới nhất trước
+                .filter(n -> n != null && n.getCreated_time() != null) // Check both notification and created_time
+                .sorted((n1, n2) -> {
+                    // Safe comparison với null check
+                    if (n1.getCreated_time() == null && n2.getCreated_time() == null) return 0;
+                    if (n1.getCreated_time() == null) return 1; // null last
+                    if (n2.getCreated_time() == null) return -1; // null last
+                    return n2.getCreated_time().compareTo(n1.getCreated_time()); // Mới nhất trước
+                })
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();

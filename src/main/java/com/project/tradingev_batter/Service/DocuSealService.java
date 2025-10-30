@@ -34,12 +34,12 @@ public interface DocuSealService {
     Contracts createSaleTransactionContract(Orders order, User buyer, User seller, String transactionLocation);
     
     /**
-     * Lấy thông tin submission từ DocuSeal
-     * submissionId ID của submission (slug hoặc id)
+     * Lấy thông tin chi tiết của một submission từ DocuSeal
+     * @param submissionSlug Slug của submission (VD: "QKvMAJdHzZqJe3")
      * @return Thông tin chi tiết submission
      */
-    DocuSealSubmissionResponse getSubmission(String submissionId);
-    
+    DocuSealSubmissionResponse getSubmission(String submissionSlug);
+
     /**
      * Xử lý webhook callback từ DocuSeal
      * Được gọi khi có sự kiện: submission.completed, submitter.completed, etc.
