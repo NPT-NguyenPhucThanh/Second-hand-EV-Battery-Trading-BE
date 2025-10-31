@@ -4,6 +4,7 @@ import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.PackageServiceRepository;
 import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.*;
+import com.project.tradingev_batter.Entity.Refund;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,13 +23,19 @@ public class ManagerController {
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
     private final UserService userService;
+    private final DisputeService disputeService;
+    private final RefundService refundService;
 
     public ManagerController(ManagerService managerService,
                              PackageServiceRepository packageServiceRepository,
-                             UserService userService) {
+                             UserService userService,
+                             DisputeService disputeService,
+                             RefundService refundService) {
         this.managerService = managerService;
         this.packageServiceRepository = packageServiceRepository;
         this.userService = userService;
+        this.disputeService = disputeService;
+        this.refundService = refundService;
     }
 
     // USER MANAGEMENT
@@ -197,22 +204,167 @@ public class ManagerController {
     }
 
     @Operation(summary = "Giải quyết dispute",
-               description = "Manager giải quyết khiếu nại và có thể hoàn tiền cho buyer")
+               description = "Manager giải quyết khiếu nại: APPROVE_REFUND (hoàn tiền) hoặc REJECT_DISPUTE (từ chối)")
     @PostMapping("/disputes/{disputeId}/resolve")
     public ResponseEntity<Map<String, Object>> resolveDispute(
             @PathVariable Long disputeId,
-            @RequestParam String resolution,
-            @RequestBody(required = false) RefundRequest refundRequest) {
+            @RequestBody DisputeResolutionRequest request) {
         try {
-            managerService.resolveDispute(disputeId, resolution, refundRequest);
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Dispute đã được giải quyết"
-            ));
+            Dispute resolvedDispute = disputeService.resolveDispute(
+                disputeId,
+                request.getDecision(),
+                request.getManagerNote()
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Khiếu nại đã được xử lý");
+            response.put("disputeId", resolvedDispute.getDisputeid());
+            response.put("disputeStatus", resolvedDispute.getStatus().name());
+            response.put("resolvedAt", resolvedDispute.getResolvedAt());
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "message", "Không thể giải quyết dispute: " + e.getMessage()
+            ));
+        }
+    }
+
+    // REFUND MANAGEMENT
+
+    @Operation(summary = "Lấy danh sách tất cả refund requests",
+               description = "Lấy tất cả yêu cầu hoàn tiền trong hệ thống")
+    @GetMapping("/refunds")
+    public ResponseEntity<Map<String, Object>> getAllRefunds() {
+        try {
+            List<Refund> refunds = refundService.getAllRefunds();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("totalRefunds", refunds.size());
+            response.put("refunds", refunds.stream().map(refund -> {
+                Map<String, Object> refundData = new HashMap<>();
+                refundData.put("refundId", refund.getRefundid());
+
+                if (refund.getOrders() != null) {
+                    Orders order = refund.getOrders();
+                    refundData.put("orderId", order.getOrderid());
+
+                    // Buyer info
+                    User buyer = order.getUsers();
+                    if (buyer != null) {
+                        refundData.put("buyerId", buyer.getUserid());
+                        refundData.put("buyerName", buyer.getDisplayname() != null ? buyer.getDisplayname() : buyer.getUsername());
+                    }
+                }
+
+                refundData.put("amount", refund.getAmount());
+                refundData.put("reason", refund.getReason());
+                refundData.put("status", refund.getStatus() != null ? refund.getStatus().name() : "N/A");
+                refundData.put("refundMethod", refund.getRefundMethod());
+                refundData.put("createdAt", refund.getCreatedat());
+                refundData.put("processedAt", refund.getProcessedAt());
+                refundData.put("processedBy", refund.getProcessedBy() != null ? refund.getProcessedBy().getUsername() : null);
+
+                return refundData;
+            }).toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể tải refund requests: " + e.getMessage()
+            ));
+        }
+    }
+
+    @Operation(summary = "Xử lý refund request",
+               description = "Manager duyệt hoặc từ chối yêu cầu hoàn tiền")
+    @PostMapping("/refunds/{refundId}/process")
+    public ResponseEntity<Map<String, Object>> processRefund(
+            @PathVariable Long refundId,
+            @RequestBody RefundProcessRequest request) {
+        try {
+            User currentManager = getCurrentUser();
+
+            Refund processedRefund = refundService.processRefund(
+                refundId,
+                currentManager.getUserid(),
+                request.getRefundMethod(),
+                request.isApprove(),
+                request.getNote()
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", request.isApprove() ? "Refund đã được chấp nhận" : "Refund đã bị từ chối");
+            response.put("refundId", processedRefund.getRefundid());
+            response.put("refundStatus", processedRefund.getStatus().name());
+            response.put("processedAt", processedRefund.getProcessedAt());
+            response.put("amount", processedRefund.getAmount());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Không thể xử lý refund: " + e.getMessage()
+            ));
+        }
+    }
+
+    @Operation(summary = "Lấy chi tiết refund request",
+               description = "Lấy thông tin chi tiết của một yêu cầu hoàn tiền")
+    @GetMapping("/refunds/{refundId}")
+    public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
+        try {
+            Refund refund = refundService.getRefundById(refundId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+
+            Map<String, Object> refundData = new HashMap<>();
+            refundData.put("refundId", refund.getRefundid());
+            refundData.put("amount", refund.getAmount());
+            refundData.put("reason", refund.getReason());
+            refundData.put("status", refund.getStatus().name());
+            refundData.put("refundMethod", refund.getRefundMethod());
+            refundData.put("createdAt", refund.getCreatedat());
+            refundData.put("processedAt", refund.getProcessedAt());
+
+            if (refund.getOrders() != null) {
+                Orders order = refund.getOrders();
+                refundData.put("orderId", order.getOrderid());
+                refundData.put("orderStatus", order.getStatus().name());
+                refundData.put("orderTotal", order.getTotalfinal());
+
+                // Buyer info
+                User buyer = order.getUsers();
+                if (buyer != null) {
+                    refundData.put("buyer", Map.of(
+                        "userId", buyer.getUserid(),
+                        "username", buyer.getUsername(),
+                        "displayName", buyer.getDisplayname() != null ? buyer.getDisplayname() : "N/A",
+                        "email", buyer.getEmail()
+                    ));
+                }
+            }
+
+            if (refund.getProcessedBy() != null) {
+                refundData.put("processedBy", Map.of(
+                    "userId", refund.getProcessedBy().getUserid(),
+                    "username", refund.getProcessedBy().getUsername()
+                ));
+            }
+
+            response.put("refund", refundData);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body(Map.of(
+                "status", "error",
+                "message", "Không tìm thấy refund: " + e.getMessage()
             ));
         }
     }

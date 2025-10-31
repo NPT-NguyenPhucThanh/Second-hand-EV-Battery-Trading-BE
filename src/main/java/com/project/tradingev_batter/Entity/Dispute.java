@@ -32,6 +32,9 @@ public class Dispute {
     @Column(name = "created_at")
     private Date createdAt;
 
+    @Column(name = "resolved_at")
+    private Date resolvedAt;
+
     @ManyToOne
     @JoinColumn(name = "orderid")
     private Orders order;

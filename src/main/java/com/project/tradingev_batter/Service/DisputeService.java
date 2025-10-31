@@ -9,4 +9,5 @@ public interface DisputeService {
     List<Dispute> getDisputesByBuyer(Long buyerId);
     List<Dispute> getAllDisputes(); // For manager
     Dispute getDisputeById(Long disputeId);
+    Dispute resolveDispute(Long disputeId, String decision, String managerNote);
 }
