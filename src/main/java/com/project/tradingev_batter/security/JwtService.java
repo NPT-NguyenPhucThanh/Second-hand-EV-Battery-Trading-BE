@@ -31,7 +31,11 @@ public class JwtService {
 
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> extraClaims = new HashMap<>();
-        extraClaims.put("roles", userDetails.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()));
+        // Loại bỏ prefix "ROLE_" để đồng nhất với response API
+        extraClaims.put("roles", userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(role -> role.replace("ROLE_", ""))
+                .collect(Collectors.toList()));
         if (userDetails instanceof CustomUserDetails) {
             CustomUserDetails myUser = (CustomUserDetails) userDetails;
             extraClaims.put("email", myUser.getEmail());
