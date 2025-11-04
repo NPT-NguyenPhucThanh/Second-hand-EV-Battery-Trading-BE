@@ -42,10 +42,10 @@ public class ChatServiceImpl implements ChatService {
     public Chatroom getOrCreateChatroom(Long buyerId, Long sellerId, Long orderId) {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new RuntimeException("Buyer not found"));
-        
+
         User seller = userRepository.findById(sellerId)
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
-        
+
         // Tìm chatroom đã tồn tại
         Chatroom existingRoom = null;
         if (orderId != null) {
@@ -56,22 +56,22 @@ public class ChatServiceImpl implements ChatService {
         } else {
             existingRoom = chatroomRepository.findByBuyerAndSeller(buyer, seller);
         }
-        
+
         if (existingRoom != null) {
             return existingRoom;
         }
-        
+
         // Tạo chatroom mới
         Chatroom newRoom = new Chatroom();
         newRoom.setBuyer(buyer);
         newRoom.setSeller(seller);
         newRoom.setCreatedat(new Date());
-        
+
         if (orderId != null) {
             Orders order = orderRepository.findById(orderId).orElse(null);
             newRoom.setOrders(order);
         }
-        
+
         return chatroomRepository.save(newRoom);
     }
 
@@ -86,11 +86,11 @@ public class ChatServiceImpl implements ChatService {
     public List<Chatroom> getChatroomsByUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         // Lấy chatroom mà user là buyer hoặc seller
         List<Chatroom> buyerRooms = chatroomRepository.findByBuyer(user);
         List<Chatroom> sellerRooms = chatroomRepository.findBySeller(user);
-        
+
         // Merge 2 lists
         buyerRooms.addAll(sellerRooms);
         return buyerRooms;

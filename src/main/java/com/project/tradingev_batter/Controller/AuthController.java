@@ -122,6 +122,7 @@ public class AuthController {
         response.put("username", user.getUsername());
         response.put("email", user.getEmail());
         response.put("roles", user.getRoles().stream().map(Role::getRolename).collect(Collectors.toList()));
+        response.put("userId", user.getUserid());
         return ResponseEntity.ok(response);
     }
 
