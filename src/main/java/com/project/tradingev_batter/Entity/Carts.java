@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,6 +29,7 @@ public class Carts {
 
     @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "userid")
+    @JsonIgnoreProperties({"carts", "orders", "packages", "products", "feedback", "disputes", "transactions"})
     private User users;
 
     @OneToMany(mappedBy = "carts", fetch = FetchType.EAGER, cascade = CascadeType.ALL)

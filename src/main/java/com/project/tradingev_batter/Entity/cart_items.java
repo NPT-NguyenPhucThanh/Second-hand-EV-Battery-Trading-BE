@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,13 +27,16 @@ public class cart_items {
 
     @ManyToOne
     @JoinColumn(name = "cartsid")
+    @JsonIgnoreProperties({"cart_items", "users"})
     private Carts carts;
 
     @ManyToOne
     @JoinColumn(name = "productid")
+    @JsonIgnoreProperties({"cart_items", "order_detail", "feedback", "images"})
     private Product products;
 
     @ManyToOne
     @JoinColumn(name = "userid")
+    @JsonIgnoreProperties({"carts", "orders", "packages", "products", "feedback", "disputes", "transactions"})
     private User users;
 }
