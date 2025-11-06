@@ -1,6 +1,7 @@
 package com.project.tradingev_batter.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -32,6 +33,7 @@ public class Carts {
     @JsonIgnoreProperties({"carts", "orders", "packages", "products", "feedback", "disputes", "transactions"})
     private User users;
 
-    @OneToMany(mappedBy = "carts", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    private List<cart_items>  cart_items = new ArrayList<>();
+    @OneToMany(mappedBy = "carts", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties({"carts"}) // Tránh circular reference: carts -> cart_items -> carts
+    private List<cart_items> cart_items = new ArrayList<>();
 }

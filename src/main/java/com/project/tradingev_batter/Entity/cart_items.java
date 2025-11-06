@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -27,7 +28,7 @@ public class cart_items {
 
     @ManyToOne
     @JoinColumn(name = "cartsid")
-    @JsonIgnoreProperties({"cart_items", "users"})
+    @JsonIgnore // Tránh circular reference: cart_items -> carts -> cart_items
     private Carts carts;
 
     @ManyToOne

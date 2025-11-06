@@ -9,6 +9,8 @@ import com.project.tradingev_batter.Repository.CartsRepository;
 import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
 import com.project.tradingev_batter.enums.ProductStatus;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,9 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public CartServiceImpl(CartsRepository cartsRepository,
                           CartItemRepository cartItemRepository,
@@ -95,6 +100,9 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional(readOnly = true)
     public Carts getCart(Long userId) {
+        // Clear cache trước khi query để đảm bảo lấy dữ liệu mới nhất từ DB
+        entityManager.clear();
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
@@ -120,11 +128,29 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new RuntimeException("Cart item not found"));
         
         // Kiểm tra quyền sở hữu
-        if (item.getUsers().getUserid() != userId) {
+        if (!item.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền xóa item này");
         }
         
+        // Lấy cart trước khi xóa
+        Carts cart = item.getCarts();
+
+        // Remove item từ collection trước
+        cart.getCart_items().remove(item);
+
+        // Xóa item
         cartItemRepository.delete(item);
+        cartItemRepository.flush();
+
+        // Update cart timestamp
+        cart.setUpdatedat(new Date());
+        cartsRepository.save(cart);
+
+        // Force flush để đảm bảo SQL DELETE được thực thi ngay
+        entityManager.flush();
+
+        // Clear cache để đảm bảo lần query tiếp theo
+        entityManager.clear();
     }
 
     @Override
@@ -134,7 +160,7 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new RuntimeException("Cart item not found"));
         
         // Kiểm tra quyền sở hữu
-        if (item.getUsers().getUserid() != userId) {
+        if (!item.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền cập nhật item này");
         }
         
@@ -163,5 +189,9 @@ public class CartServiceImpl implements CartService {
         cartItemRepository.deleteAll(cart.getCart_items());
         cart.setUpdatedat(new Date());
         cartsRepository.save(cart);
+
+        // Force flush và clear cache
+        entityManager.flush();
+        entityManager.clear();
     }
 }
