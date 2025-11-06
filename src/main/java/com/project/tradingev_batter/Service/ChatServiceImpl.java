@@ -35,33 +35,48 @@ public class ChatServiceImpl implements ChatService {
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
     }
-
+    
     //Lấy hoặc tạo chatroom giữa buyer và seller
     @Override
     @Transactional
     public Chatroom getOrCreateChatroom(Long buyerId, Long sellerId, Long orderId) {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new RuntimeException("Buyer not found"));
+        if (buyerId.equals(sellerId)) {
+            throw new RuntimeException("Bạn không thể tự tạo phòng chat với chính mình.");
+        }
+        User seller = userRepository.findByIdWithRoles(sellerId);
+        if (seller == null) {
+            throw new RuntimeException("Người dùng (Seller) không tồn tại.");
+        }
+        boolean isReceiverAllowed = seller.getRoles().stream()
+                .anyMatch(role -> {
+                    String roleName = role.getRolename();
+                    return "SELLER".equals(roleName) || "MANAGER".equals(roleName) || "STAFF".equals(roleName);
+                });
 
-        User seller = userRepository.findById(sellerId)
-                .orElseThrow(() -> new RuntimeException("Seller not found"));
-
-        // Tìm chatroom đã tồn tại
+        if (!isReceiverAllowed) {
+            throw new RuntimeException("Chỉ có thể tạo phòng chat với người bán (Seller).");
+        }
         Chatroom existingRoom = null;
+
         if (orderId != null) {
             Orders order = orderRepository.findById(orderId).orElse(null);
             if (order != null) {
                 existingRoom = chatroomRepository.findByBuyerAndSellerAndOrders(buyer, seller, order);
+                if (existingRoom == null) {
+                    existingRoom = chatroomRepository.findByBuyerAndSellerAndOrders(seller, buyer, order);
+                }
             }
         } else {
             existingRoom = chatroomRepository.findByBuyerAndSeller(buyer, seller);
+            if (existingRoom == null) {
+                existingRoom = chatroomRepository.findByBuyerAndSeller(seller, buyer);
+            }
         }
-
         if (existingRoom != null) {
             return existingRoom;
         }
-
-        // Tạo chatroom mới
         Chatroom newRoom = new Chatroom();
         newRoom.setBuyer(buyer);
         newRoom.setSeller(seller);
