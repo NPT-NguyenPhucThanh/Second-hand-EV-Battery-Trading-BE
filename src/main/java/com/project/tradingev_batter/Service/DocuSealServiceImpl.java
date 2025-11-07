@@ -93,10 +93,10 @@ public class DocuSealServiceImpl implements DocuSealService {
 
             String notificationTitle = "Hợp đồng đăng bán đã sẵn sàng";
             String notificationMessage = String.format(
-                "Vui lòng ký hợp đồng điện tử để hoàn tất việc đăng bán xe %s. " +
-                "Link ký: %s",
-                product.getProductname(),
-                signingUrl
+                    "Vui lòng ký hợp đồng điện tử để hoàn tất việc đăng bán xe %s. " +
+                            "Link ký: %s",
+                    product.getProductname(),
+                    signingUrl
             );
 
             createNotification(seller, notificationTitle, notificationMessage);
@@ -160,22 +160,23 @@ public class DocuSealServiceImpl implements DocuSealService {
             contractsRepository.save(contract);
 
             // 4. Tạo notification cho cả buyer và seller
-            String orderInfo = "Đơn hàng #" + order.getOrderid() + " - Tổng tiền: " + order.getTotalfinal() + " VNĐ";
+            String formattedTotal = String.format("%,.0f", order.getTotalfinal());
+            String orderInfo = "Đơn hàng #" + order.getOrderid() + " - Tổng tiền: " + formattedTotal + " VNĐ";
 
             String buyerSigningUrl = getSigningUrlForBuyer(response);
             String buyerTitle = "Hợp đồng mua xe đã sẵn sàng";
             String buyerMessage = String.format(
-                "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
-                orderInfo,
-                buyerSigningUrl
+                    "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
+                    orderInfo,
+                    buyerSigningUrl
             );
 
             String sellerSigningUrl = getSigningUrlForSeller(response);
             String sellerTitle = "Hợp đồng bán xe đã sẵn sàng";
             String sellerMessage = String.format(
-                "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
-                orderInfo,
-                sellerSigningUrl
+                    "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
+                    orderInfo,
+                    sellerSigningUrl
             );
 
             createNotification(buyer, buyerTitle, buyerMessage);
@@ -279,31 +280,31 @@ public class DocuSealServiceImpl implements DocuSealService {
         // Update notifications với signing URLs mới
         if ("SALE_TRANSACTION".equals(contract.getContractType())) {
             String orderInfo = "Đơn hàng #" + contract.getOrders().getOrderid() +
-                              " - Tổng tiền: " + contract.getOrders().getTotalfinal() + " VNĐ";
+                    " - Tổng tiền: " + contract.getOrders().getTotalfinal() + " VNĐ";
 
             // Update buyer notification
             if (buyerUrl != null && contract.getBuyers() != null) {
                 String buyerMessage = String.format(
-                    "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
-                    orderInfo,
-                    buyerUrl
+                        "Vui lòng ký hợp đồng mua xe. %s. Link ký: %s",
+                        orderInfo,
+                        buyerUrl
                 );
                 createNotification(contract.getBuyers(),
-                                 "Hợp đồng mua xe đã sẵn sàng",
-                                 buyerMessage);
+                        "Hợp đồng mua xe đã sẵn sàng",
+                        buyerMessage);
                 log.info("✓ Updated buyer notification with signing URL");
             }
 
             // Update seller notification
             if (sellerUrl != null && contract.getSellers() != null) {
                 String sellerMessage = String.format(
-                    "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
-                    orderInfo,
-                    sellerUrl
+                        "Vui lòng ký hợp đồng bán xe. %s. Link ký: %s",
+                        orderInfo,
+                        sellerUrl
                 );
                 createNotification(contract.getSellers(),
-                                 "Hợp đồng bán xe đã sẵn sàng",
-                                 sellerMessage);
+                        "Hợp đồng bán xe đã sẵn sàng",
+                        sellerMessage);
                 log.info("✓ Updated seller notification with signing URL");
             }
         }
@@ -512,40 +513,40 @@ public class DocuSealServiceImpl implements DocuSealService {
 
         // Tạo fields data để điền sẵn vào document
         List<DocuSealSubmissionRequest.Field> fields = List.of(
-            DocuSealSubmissionRequest.Field.builder()
-                .name("product_name")
-                .default_value(productName)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("product_price")
-                .default_value(productPrice)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("product_description")  // Đổi từ product_specs
-                .default_value(productDescription)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("product_type")
-                .default_value(productType)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_name")
-                .default_value(sellerName)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_email")
-                .default_value(sellerEmail)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_phone")
-                .default_value(sellerPhone_display)
-                .build(),
-            // NOTE: Không gửi manager_name vì template không có field này
-            // Manager chỉ duyệt, không ký hợp đồng
-            DocuSealSubmissionRequest.Field.builder()
-                .name("contract_date")
-                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
-                .build()
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("product_name")
+                        .default_value(productName)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("product_price")
+                        .default_value(productPrice)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("product_description")  // Đổi từ product_specs
+                        .default_value(productDescription)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("product_type")
+                        .default_value(productType)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_name")
+                        .default_value(sellerName)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_email")
+                        .default_value(sellerEmail)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_phone")
+                        .default_value(sellerPhone_display)
+                        .build(),
+                // NOTE: Không gửi manager_name vì template không có field này
+                // Manager chỉ duyệt, không ký hợp đồng
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("contract_date")
+                        .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
+                        .build()
         );
 
         // Tạo submitter cho Seller với fields data
@@ -594,54 +595,54 @@ public class DocuSealServiceImpl implements DocuSealService {
         // QUAN TRỌNG: MỖI ROLE CHỈ NHẬN FIELDS THUỘC VỀ ROLE ĐÓ!
         // Buyer fields (8 fields + 1 signature trong template)
         List<DocuSealSubmissionRequest.Field> buyerFields = List.of(
-            DocuSealSubmissionRequest.Field.builder()
-                .name("order_id")
-                .default_value(orderInfo)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("total_amount")
-                .default_value(totalAmount)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("final_payment")
-                .default_value(finalPayment)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_name")
-                .default_value(buyerName)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_email")
-                .default_value(buyerEmail)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("buyer_phone")
-                .default_value(buyerPhone_display)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("transaction_location")
-                .default_value(location)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("contract_date")
-                .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
-                .build()
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("order_id")
+                        .default_value(orderInfo)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("total_amount")
+                        .default_value(totalAmount)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("final_payment")
+                        .default_value(finalPayment)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("buyer_name")
+                        .default_value(buyerName)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("buyer_email")
+                        .default_value(buyerEmail)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("buyer_phone")
+                        .default_value(buyerPhone_display)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("transaction_location")
+                        .default_value(location)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("contract_date")
+                        .default_value(new java.text.SimpleDateFormat("dd/MM/yyyy").format(new Date()))
+                        .build()
         );
 
         // Seller fields (3 fields + 1 signature trong template)
         List<DocuSealSubmissionRequest.Field> sellerFields = List.of(
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_name")
-                .default_value(sellerName)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_email")
-                .default_value(sellerEmail)
-                .build(),
-            DocuSealSubmissionRequest.Field.builder()
-                .name("seller_phone")
-                .default_value(sellerPhone_display)
-                .build()
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_name")
+                        .default_value(sellerName)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_email")
+                        .default_value(sellerEmail)
+                        .build(),
+                DocuSealSubmissionRequest.Field.builder()
+                        .name("seller_phone")
+                        .default_value(sellerPhone_display)
+                        .build()
         );
 
         // Tạo submitter cho Buyer - CHỈ với buyer fields
@@ -695,8 +696,8 @@ public class DocuSealServiceImpl implements DocuSealService {
                         log.info("    - Field: name='{}', value='{}'",
                                 f.getName(),
                                 f.getDefault_value() != null && f.getDefault_value().length() > 50
-                                    ? f.getDefault_value().substring(0, 50) + "..."
-                                    : f.getDefault_value());
+                                        ? f.getDefault_value().substring(0, 50) + "..."
+                                        : f.getDefault_value());
                     }
                 } else {
                     log.warn("No fields data for this submitter!");

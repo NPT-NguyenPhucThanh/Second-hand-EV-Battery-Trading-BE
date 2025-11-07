@@ -55,7 +55,7 @@ public class SecurityConfig {
 
                         // === WEBSOCKET ENDPOINTS ===
                         .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
-                        
+
                         // === DOCUSEAL WEBHOOK (MUST BE PUBLIC) ===
                         .requestMatchers("/api/docuseal/webhook").permitAll()
                         .requestMatchers("/api/docuseal/**").permitAll()
@@ -67,13 +67,13 @@ public class SecurityConfig {
 
                         // === MANAGER ENDPOINTS (Admin only - highest privilege) ===
                         .requestMatchers("/api/manager/**").hasRole("MANAGER")
-                        
+
                         // === STAFF ENDPOINTS (Operations - duyệt xe, kiểm định, kho, tranh chấp) ===
                         .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "MANAGER")
 
                         // === SELLER ENDPOINTS ===
                         .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
-                        
+
                         // === BUYER ENDPOINTS (CLIENT đã được thay bằng BUYER) ===
                         .requestMatchers("/api/buyer/**").hasAnyRole("BUYER", "SELLER", "MANAGER")
 
@@ -82,7 +82,7 @@ public class SecurityConfig {
 
                         // === CHAT ENDPOINTS - Tất cả authenticated users ===
                         .requestMatchers("/api/chat/**").authenticated()
-                        
+
                         // === NOTIFICATION ENDPOINTS ===
                         .requestMatchers("/api/notifications/**").authenticated()
 
