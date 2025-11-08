@@ -8,6 +8,7 @@ import com.project.tradingev_batter.Service.SellerService;
 import com.project.tradingev_batter.Service.DocuSealService;
 import com.project.tradingev_batter.Service.NotificationService;
 import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import com.project.tradingev_batter.enums.TransactionType;
 import com.project.tradingev_batter.security.CustomUserDetails;
@@ -450,9 +451,15 @@ public class PaymentController {
                     break;
                 case FINAL_PAYMENT:
                     order.setStatus(OrderStatus.DA_THANH_TOAN); // Đã thanh toán đầy đủ
+
+                    // Cập nhật product status thành ĐÃ BÁN
+                    markProductsAsSold(order);
                     break;
                 case BATTERY_PAYMENT:
                     order.setStatus(OrderStatus.DA_THANH_TOAN); // Đã thanh toán - chờ vận chuyển
+
+                    // Cập nhật product status thành ĐÃ BÁN
+                    markProductsAsSold(order);
                     break;
                 case PACKAGE_PURCHASE:
                     order.setStatus(OrderStatus.DA_THANH_TOAN); // Đã thanh toán gói
@@ -472,6 +479,27 @@ public class PaymentController {
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         log.info("Order {} status updated to: {}", order.getOrderid(), order.getStatus());
+    }
+
+    //ĐÁNH DẤU SẢN PHẨM ĐÃ BÁN SAU KHI THANH TOÁN ĐẦY ĐỦ
+    //Chuyển status product thành DA_BAN
+    //Product sẽ bị ẩn khỏi danh sách bán
+    private void markProductsAsSold(Orders order) {
+        try {
+            if (order.getDetails() != null && !order.getDetails().isEmpty()) {
+                for (Order_detail detail : order.getDetails()) {
+                    Product product = detail.getProducts();
+                    if (product != null) {
+                        product.setStatus(ProductStatus.DA_BAN);
+                        product.setUpdatedat(new Date());
+                        // Product sẽ được save tự động do cascade
+                        log.info("Product {} marked as SOLD", product.getProductid());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error marking products as sold for order {}: {}", order.getOrderid(), e.getMessage());
+        }
     }
 
     /**
