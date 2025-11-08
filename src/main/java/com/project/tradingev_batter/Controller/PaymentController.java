@@ -482,18 +482,33 @@ public class PaymentController {
     }
 
     //ĐÁNH DẤU SẢN PHẨM ĐÃ BÁN SAU KHI THANH TOÁN ĐẦY ĐỦ
-    //Chuyển status product thành DA_BAN
-    //Product sẽ bị ẩn khỏi danh sách bán
+    //Nếu amount > 1: giảm số lượng theo quantity đã mua
+    //Nếu amount == 1 hoặc sau khi giảm mà amount == 0: chuyển status thành DA_BAN
     private void markProductsAsSold(Orders order) {
         try {
             if (order.getDetails() != null && !order.getDetails().isEmpty()) {
                 for (Order_detail detail : order.getDetails()) {
                     Product product = detail.getProducts();
                     if (product != null) {
-                        product.setStatus(ProductStatus.DA_BAN);
-                        product.setUpdatedat(new Date());
+                        int quantityOrdered = detail.getQuantity(); // Số lượng buyer đã mua
+                        int currentAmount = product.getAmount();    // Số lượng hiện có trong kho
+
+                        log.info("Processing product {}: current amount = {}, ordered quantity = {}",
+                                 product.getProductid(), currentAmount, quantityOrdered);
+
+                        if (currentAmount > quantityOrdered) {
+                            // Còn hàng trong kho → giảm số lượng
+                            product.setAmount(currentAmount - quantityOrdered);
+                            product.setUpdatedat(new Date());
+                            log.info("Product {} amount reduced to {}", product.getProductid(), product.getAmount());
+                        } else {
+                            // Hết hàng hoặc bán hết → chuyển status DA_BAN
+                            product.setAmount(0);
+                            product.setStatus(ProductStatus.DA_BAN);
+                            product.setUpdatedat(new Date());
+                            log.info("Product {} marked as SOLD (out of stock)", product.getProductid());
+                        }
                         // Product sẽ được save tự động do cascade
-                        log.info("Product {} marked as SOLD", product.getProductid());
                     }
                 }
             }
