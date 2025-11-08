@@ -14,8 +14,8 @@ public class DisputeRequest {
     @NotNull(message = "Order ID không được để trống")
     private Long orderId;
 
-    @NotBlank(message = "Mô tả không được để trống")
-    @Size(min = 20, max = 1000, message = "Mô tả phải từ 20-1000 ký tự")
+    @NotBlank(message = "Description không được để trống")
+    @Size(min = 20, max = 1000, message = "Description phải từ 20-1000 ký tự")
     private String description;
 
     @NotBlank(message = "Loại lý do không được để trống")

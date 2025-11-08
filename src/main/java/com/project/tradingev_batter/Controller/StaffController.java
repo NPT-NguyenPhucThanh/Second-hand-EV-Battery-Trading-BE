@@ -19,13 +19,16 @@ import java.util.*;
 @Tag(name = "Staff APIs", description = "API dành cho nhân viên - Duyệt sản phẩm, kiểm định, quản lý kho, xử lý giao dịch & tranh chấp")
 public class StaffController {
     private final ManagerService managerService;
+    private final DisputeService disputeService;
     private final RefundService refundService;
     private final UserService userService;
 
     public StaffController(ManagerService managerService,
+                          DisputeService disputeService,
                           RefundService refundService,
                           UserService userService) {
         this.managerService = managerService;
+        this.disputeService = disputeService;
         this.refundService = refundService;
         this.userService = userService;
     }
@@ -171,23 +174,44 @@ public class StaffController {
     // DISPUTE RESOLUTION
 
     @Operation(summary = "Giải quyết tranh chấp",
-               description = "Staff xử lý tranh chấp giữa buyer và seller")
+               description = "Staff xử lý tranh chấp giữa buyer và seller. Decision: APPROVE_REFUND hoặc REJECT_DISPUTE")
     @SuppressWarnings("unchecked")
     @PostMapping("/disputes/{disputeId}/resolve")
-    public ResponseEntity<String> resolveDispute(
+    public ResponseEntity<Map<String, Object>> resolveDispute(
             @PathVariable Long disputeId,
             @RequestBody Map<String, Object> request) {
-        String resolution = (String) request.get("resolution");
-        Map<String, Object> refundMap = (Map<String, Object>) request.get("refund");
-        RefundRequest refundRequest = null;
-        if (refundMap != null) {
-            refundRequest = new RefundRequest();
-            refundRequest.setAmount((Double) refundMap.get("amount"));
-            refundRequest.setReason((String) refundMap.get("reason"));
-            refundRequest.setStatus((String) refundMap.get("status"));
+
+        String decision = (String) request.get("decision"); // APPROVE_REFUND hoặc REJECT_DISPUTE
+        String managerNote = (String) request.get("managerNote");
+
+        // Xử lý dispute
+        Dispute resolvedDispute = disputeService.resolveDispute(disputeId, decision, managerNote);
+
+        // Nếu quyết định hoàn tiền, tạo refund request
+        if ("APPROVE_REFUND".equals(decision)) {
+            Map<String, Object> refundMap = (Map<String, Object>) request.get("refund");
+            if (refundMap != null) {
+                Long orderId = ((Number) refundMap.get("orderId")).longValue();
+                Double amount = (Double) refundMap.get("amount");
+                String reason = (String) refundMap.get("reason");
+
+                // Tạo refund
+                Refund refund = refundService.createRefund(orderId, amount, reason);
+
+                Map<String, Object> response = new HashMap<>();
+                response.put("status", "success");
+                response.put("message", "Dispute đã được giải quyết và tạo refund thành công");
+                response.put("dispute", resolvedDispute);
+                response.put("refund", refund);
+                return ResponseEntity.ok(response);
+            }
         }
-        managerService.resolveDispute(disputeId, resolution, refundRequest);
-        return ResponseEntity.ok("Dispute resolved" + (refundRequest != null ? " with refund" : ""));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Dispute đã được giải quyết");
+        response.put("dispute", resolvedDispute);
+        return ResponseEntity.ok(response);
     }
 
     // REFUND MANAGEMENT

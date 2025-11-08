@@ -5,6 +5,7 @@ import com.project.tradingev_batter.Service.*;
 import com.project.tradingev_batter.dto.CheckoutRequest;
 import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.DisputeRequest;
+import com.project.tradingev_batter.dto.RefundRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionResponse;
 import com.project.tradingev_batter.security.CustomUserDetails;
@@ -42,6 +43,7 @@ public class BuyerController {
     private final ImageUploadService imageUploadService;
     private final TransactionService transactionService;
     private final GeminiAIService geminiAIService;
+    private final RefundService refundService;
 
     public BuyerController(CartService cartService,
                           OrderService orderService,
@@ -53,7 +55,8 @@ public class BuyerController {
                           UserService userService,
                           ImageUploadService imageUploadService,
                           TransactionService transactionService,
-                          GeminiAIService geminiAIService) {
+                          GeminiAIService geminiAIService,
+                          RefundService refundService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
@@ -65,6 +68,7 @@ public class BuyerController {
         this.imageUploadService = imageUploadService;
         this.transactionService = transactionService;
         this.geminiAIService = geminiAIService;
+        this.refundService = refundService;
     }
 
     //Thêm sản phẩm vào giỏ hàng
@@ -567,6 +571,52 @@ public class BuyerController {
         response.put("status", "success");
         response.put("disputes", disputes);
         
+        return ResponseEntity.ok(response);
+    }
+
+    //Refunddddddddddd
+    @Operation(
+            summary = "Yêu cầu hoàn tiền",
+            description = "Buyer gửi yêu cầu hoàn tiền cho đơn hàng có vấn đề. Manager sẽ xem xét và xử lý."
+    )
+    @PostMapping("/refund/request")
+    public ResponseEntity<Map<String, Object>> requestRefund(@Valid @RequestBody RefundRequest request) {
+        User buyer = getCurrentUser();
+
+        // Kiểm tra buyer có quyền với order này không
+        Orders order = orderService.getOrderById(request.getOrderId());
+        if (!order.getUsers().getUserid().equals(buyer.getUserid())) {
+            throw new RuntimeException("Bạn không có quyền yêu cầu hoàn tiền cho đơn hàng này");
+        }
+
+        Refund refund = refundService.createRefund(
+                request.getOrderId(),
+                request.getAmount(),
+                request.getReason()
+        );
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Yêu cầu hoàn tiền đã được gửi. Manager sẽ xử lý trong thời gian sớm nhất.");
+        response.put("refund", refund);
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Xem các yêu cầu hoàn tiền của mình
+    @Operation(
+            summary = "Xem danh sách yêu cầu hoàn tiền",
+            description = "Lấy tất cả refund requests của buyer"
+    )
+    @GetMapping("/refunds")
+    public ResponseEntity<Map<String, Object>> getRefunds() {
+        User buyer = getCurrentUser();
+        List<Refund> refunds = refundService.getRefundsByBuyer(buyer.getUserid());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("refunds", refunds);
+
         return ResponseEntity.ok(response);
     }
 

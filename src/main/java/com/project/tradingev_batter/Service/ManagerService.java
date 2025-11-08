@@ -5,7 +5,6 @@ import com.project.tradingev_batter.Entity.PackageService;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Entity.UserPackage;
-import com.project.tradingev_batter.dto.RefundRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -34,7 +33,8 @@ public interface ManagerService {
 
     List<com.project.tradingev_batter.Entity.Dispute> getAllDisputes(); // Lấy tất cả disputes
 
-    void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest);
+    // NOTE: resolveDispute đã được chuyển sang DisputeService.resolveDispute()
+    // Không dùng method này nữa
 
     // Seller Upgrade - Cập nhật signature
     void approveSellerUpgrade(Long userId, boolean approved, String rejectionReason);

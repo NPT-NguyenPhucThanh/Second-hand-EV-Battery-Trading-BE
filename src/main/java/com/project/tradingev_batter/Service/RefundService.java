@@ -121,6 +121,13 @@ public class RefundService {
         return refundRepository.findByOrders(order);
     }
 
+    //Lấy refunds của buyer
+    public List<Refund> getRefundsByBuyer(Long buyerId) {
+        return refundRepository.findAll().stream()
+                .filter(refund -> refund.getOrders().getUsers().getUserid().equals(buyerId))
+                .toList();
+    }
+
     //Lấy refund detail theo ID
     public Refund getRefundById(Long refundId) {
         return refundRepository.findById(refundId)

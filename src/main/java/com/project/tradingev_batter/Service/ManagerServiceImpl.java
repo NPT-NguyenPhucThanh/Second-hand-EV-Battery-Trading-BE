@@ -2,7 +2,6 @@ package com.project.tradingev_batter.Service;
 
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.*;
-import com.project.tradingev_batter.dto.RefundRequest;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.DisputeStatus;
@@ -253,62 +252,11 @@ public class ManagerServiceImpl implements ManagerService {
 
     @Override
     public List<Dispute> getAllDisputes() {
-
         return disputeRepository.findAll();
     }
 
-    //Giải quyết tranh chấp
-    //chuyển trạng thái tranh chấp sang RESOLVED, lưu resolution
-    //cập nhật trạng thái đơn hàng sang DISPUTE_RESOLVED
-    @Override
-    @Transactional
-        public void resolveDispute(Long disputeId, String resolution, RefundRequest refundRequest) {
-        Dispute dispute = disputeRepository.findById(disputeId)
-                .orElseThrow(() -> new RuntimeException("Dispute not found"));
-        dispute.setStatus(DisputeStatus.RESOLVED);
-        dispute.setResolution(resolution);
-        dispute.setManager(getCurrentManager()); // Giả sử có phương thức lấy manager hiện tại
-        disputeRepository.save(dispute);
-
-        //update order status
-        Orders order = dispute.getOrder();
-        order.setStatus(OrderStatus.DISPUTE_RESOLVED); // Or "RESOLVED_WITH_REFUND" nếu refund
-        orderRepository.save(order);
-
-        if (refundRequest != null && refundRequest.getAmount() > 0) {
-            Refund refund = new Refund();
-            refund.setAmount(refundRequest.getAmount());
-            refund.setReason(refundRequest.getReason() != null ? refundRequest.getReason() : resolution);
-            refund.setStatus(refundRequest.getStatus() != null ? RefundStatus.valueOf(refundRequest.getStatus()) : RefundStatus.PENDING);
-            refund.setOrders(order);
-            refundRepository.save(refund);  // Auto createdat via @CreationTimestamp
-
-            order.setStatus(OrderStatus.RESOLVED_WITH_REFUND);
-            orderRepository.save(order);  // Update lại order
-
-            // Noti với refund info
-            Notification refundNoti = new Notification();
-            refundNoti.setTitle("Tranh chấp được giải quyết với hoàn tiền");
-            refundNoti.setDescription("Số tiền hoàn: " + refundRequest.getAmount() + ". Lý do: " + resolution);
-            refundNoti.setUsers(order.getUsers());  // Buyer
-            notificationRepository.save(refundNoti);
-        }
-
-        //tạo noti cho buyer
-        Notification buyerNoti = new Notification();
-        buyerNoti.setTitle("Tranh chấp đã được giải quyết");
-        buyerNoti.setDescription(resolution + (refundRequest != null ? " (Có hoàn tiền)" : ""));
-        buyerNoti.setUsers(order.getUsers());
-        notificationRepository.save(buyerNoti);
-
-        //tạo noti cho seller
-        User seller = order.getDetails().get(0).getProducts().getUsers();  // Lấy seller từ detail đầu
-        Notification sellerNoti = new Notification();
-        sellerNoti.setTitle("Tranh chấp đã được giải quyết");
-        sellerNoti.setDescription(resolution);
-        sellerNoti.setUsers(seller);
-        notificationRepository.save(sellerNoti);
-    }
+    // NOTE: resolveDispute đã được chuyển sang DisputeServiceImpl.resolveDispute()
+    // ManagerController đang sử dụng DisputeService để xử lý dispute
 
     //Xử lý hoàn tiền đơn hàng bị từ chối (10% tiền cọc)
     //tạo refund với status "COMPLETED" (giả định auto-complete, integrate VnPay sau)
