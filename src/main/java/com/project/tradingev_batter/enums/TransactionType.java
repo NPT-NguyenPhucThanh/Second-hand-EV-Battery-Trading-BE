@@ -6,7 +6,9 @@ public enum TransactionType {
     BATTERY_PAYMENT("Thanh toán mua pin"),
     PACKAGE_PURCHASE("Mua gói dịch vụ"),
     REFUND("Hoàn tiền"),
-    COMMISSION("Hoa hồng 5%");
+    COMMISSION("Hoa hồng 5%"),
+    PAYOUT("Thanh toán cho người bán"),
+    ESCROW_RELEASE("Giải phóng ký quỹ");
 
     private final String description;
 

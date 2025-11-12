@@ -1,14 +1,53 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Service.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.project.tradingev_batter.Entity.Carts;
+import com.project.tradingev_batter.Entity.Dispute;
+import com.project.tradingev_batter.Entity.Feedback;
+import com.project.tradingev_batter.Entity.Order_detail;
+import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.Refund;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.cart_items;
+import com.project.tradingev_batter.Service.CartService;
+import com.project.tradingev_batter.Service.DisputeService;
+import com.project.tradingev_batter.Service.DocuSealService;
+import com.project.tradingev_batter.Service.FeedbackService;
+import com.project.tradingev_batter.Service.GeminiAIService;
+import com.project.tradingev_batter.Service.ImageUploadService;
+import com.project.tradingev_batter.Service.OrderService;
+import com.project.tradingev_batter.Service.ProductService;
+import com.project.tradingev_batter.Service.RefundService;
+import com.project.tradingev_batter.Service.TransactionService;
+import com.project.tradingev_batter.Service.UserService;
+import com.project.tradingev_batter.Service.VNPayService;
 import com.project.tradingev_batter.dto.CheckoutRequest;
-import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.DisputeRequest;
-import com.project.tradingev_batter.dto.RefundRequest;
+import com.project.tradingev_batter.dto.FeedbackRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionRequest;
 import com.project.tradingev_batter.dto.PriceSuggestionResponse;
+import com.project.tradingev_batter.dto.RefundRequest;
+import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.security.CustomUserDetails;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -16,16 +55,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/buyer")
@@ -46,17 +75,17 @@ public class BuyerController {
     private final RefundService refundService;
 
     public BuyerController(CartService cartService,
-                          OrderService orderService,
-                          FeedbackService feedbackService,
-                          DisputeService disputeService,
-                          ProductService productService,
-                          DocuSealService docuSealService,
-                          VNPayService vnPayService,
-                          UserService userService,
-                          ImageUploadService imageUploadService,
-                          TransactionService transactionService,
-                          GeminiAIService geminiAIService,
-                          RefundService refundService) {
+            OrderService orderService,
+            FeedbackService feedbackService,
+            DisputeService disputeService,
+            ProductService productService,
+            DocuSealService docuSealService,
+            VNPayService vnPayService,
+            UserService userService,
+            ImageUploadService imageUploadService,
+            TransactionService transactionService,
+            GeminiAIService geminiAIService,
+            RefundService refundService) {
         this.cartService = cartService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
@@ -77,9 +106,9 @@ public class BuyerController {
             description = "Buyer thêm sản phẩm (xe/pin) vào giỏ hàng với số lượng chỉ định"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Thêm vào giỏ hàng thành công"),
-            @ApiResponse(responseCode = "400", description = "Sản phẩm không tồn tại hoặc hết hàng"),
-            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+        @ApiResponse(responseCode = "200", description = "Thêm vào giỏ hàng thành công"),
+        @ApiResponse(responseCode = "400", description = "Sản phẩm không tồn tại hoặc hết hàng"),
+        @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
     })
     @PostMapping("/cart/add")
     public ResponseEntity<Map<String, Object>> addToCart(
@@ -87,15 +116,15 @@ public class BuyerController {
             @RequestParam Long productId,
             @Parameter(description = "Số lượng sản phẩm", example = "1")
             @RequestParam(defaultValue = "1") int quantity) {
-        
+
         User buyer = getCurrentUser();
         cart_items cartItem = cartService.addToCart(buyer.getUserid(), productId, quantity);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Thêm vào giỏ hàng thành công");
         response.put("cartItem", cartItem);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -105,22 +134,22 @@ public class BuyerController {
             description = "Lấy danh sách sản phẩm trong giỏ hàng của buyer hiện tại"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Trả về thông tin giỏ hàng"),
-            @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
+        @ApiResponse(responseCode = "200", description = "Trả về thông tin giỏ hàng"),
+        @ApiResponse(responseCode = "401", description = "Chưa đăng nhập")
     })
     @GetMapping("/cart")
     public ResponseEntity<Map<String, Object>> getCart() {
         User buyer = getCurrentUser();
         Carts cart = cartService.getCart(buyer.getUserid());
-        
+
         double totalAmount = cartService.calculateCartTotal(buyer.getUserid());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("cart", cart);
         response.put("totalAmount", totalAmount);
         response.put("itemCount", cart.getCart_items().size());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -134,11 +163,11 @@ public class BuyerController {
             @PathVariable Long itemId) {
         User buyer = getCurrentUser();
         cartService.removeFromCart(buyer.getUserid(), itemId);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Đã xóa khỏi giỏ hàng");
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -152,15 +181,15 @@ public class BuyerController {
             @PathVariable Long itemId,
             @Parameter(description = "Số lượng mới", required = true)
             @RequestParam int quantity) {
-        
+
         User buyer = getCurrentUser();
         cart_items updatedItem = cartService.updateCartItemQuantity(buyer.getUserid(), itemId, quantity);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Cập nhật giỏ hàng thành công");
         response.put("cartItem", updatedItem);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -170,13 +199,13 @@ public class BuyerController {
             description = "Tạo đơn hàng từ 1 sản phẩm (Mua ngay) hoặc từ giỏ hàng (nếu productId = null hoặc 0)"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Đặt hàng thành công - Trả về thông tin order"),
-            @ApiResponse(responseCode = "400", description = "Sản phẩm không khả dụng hoặc giỏ hàng trống")
+        @ApiResponse(responseCode = "200", description = "Đặt hàng thành công - Trả về thông tin order"),
+        @ApiResponse(responseCode = "400", description = "Sản phẩm không khả dụng hoặc giỏ hàng trống")
     })
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkout(@Valid @RequestBody CheckoutRequest request) {
         User buyer = getCurrentUser();
-        
+
         Orders order;
 
         // Nếu có productId → Mua trực tiếp 1 sản phẩm
@@ -202,7 +231,14 @@ public class BuyerController {
         response.put("message", "Đặt hàng thành công");
         response.put("order", order);
         response.put("orderId", order.getOrderid());
-        
+
+        System.out.println("===== DEBUG CHECKOUT RESPONSE =====");
+        System.out.println("Order ID: " + order.getOrderid());
+        System.out.println("Order Status: " + order.getStatus());
+        System.out.println("Is Car Order: " + orderService.isCarOrder(order));
+        System.out.println("Is Battery Order: " + orderService.isBatteryOrder(order));
+        System.out.println("==================================");
+
         // Nếu là xe, cần đặt cọc 10%
         if (orderService.isCarOrder(order)) {
             double depositAmount = order.getTotalamount() * 0.10;
@@ -210,30 +246,107 @@ public class BuyerController {
             response.put("depositAmount", depositAmount);
             response.put("message", "Đơn hàng đã được tạo. Vui lòng thanh toán đặt cọc 10%");
             response.put("nextStep", "Gọi API /api/buyer/orders/{orderId}/deposit để lưu thông tin giao dịch, sau đó thanh toán qua VNPay");
+        } // Nếu là pin, cần thanh toán 100%
+        else if (orderService.isBatteryOrder(order)) {
+            response.put("requirePayment", true);
+            response.put("paymentAmount", order.getTotalfinal());
+            response.put("message", "Đơn hàng đã được tạo. Vui lòng thanh toán 100%");
+            response.put("nextStep", "Gọi API /api/buyer/orders/{orderId}/payment để thanh toán qua VNPay");
         }
 
         return ResponseEntity.ok(response);
     }
 
     /**
-     * ĐẶT CỌC 10% CHO ĐƠN HÀNG XE - REDIRECT SANG VNPAY
-     * 1. Buyer gọi API này
-     * 2. BE tạo transaction record (PENDING)
-     * 3. BE tạo payment URL từ VNPay
-     * 4. Frontend redirect buyer sang VNPay
-     * 5. Buyer thanh toán trên VNPay
-     * 6. VNPay callback về /api/payment/vnpay-ipn
-     * 7. BE cập nhật transaction (SUCCESS)
-     * 8. BE tạo hợp đồng DocuSeal
-     * NOTE: API này CHỈ TẠO PAYMENT URL, không xử lý payment trực tiếp
+     * THANH TOÁN 100% CHO ĐƠN HÀNG PIN - REDIRECT SANG VNPAY 1. Buyer gọi API
+     * này sau khi tạo order PIN 2. BE tạo transaction record (PENDING) 3. BE
+     * tạo payment URL từ VNPay 4. Frontend redirect buyer sang VNPay 5. Buyer
+     * thanh toán trên VNPay 6. VNPay callback về /api/payment/vnpay-ipn 7. BE
+     * cập nhật transaction (SUCCESS) 8. BE cập nhật order status
+     * (THANH_TOAN_THANH_CONG)
+     */
+    @Operation(
+            summary = "Thanh toán 100% cho đơn hàng PIN",
+            description = "Tạo payment URL VNPay để thanh toán toàn bộ đơn hàng PIN"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Trả về payment URL VNPay"),
+        @ApiResponse(responseCode = "400", description = "Đơn hàng không hợp lệ hoặc không phải PIN")
+    })
+    @PostMapping("/orders/{orderId}/payment")
+    public ResponseEntity<Map<String, Object>> makeBatteryPayment(
+            @Parameter(description = "ID đơn hàng", required = true)
+            @PathVariable Long orderId,
+            HttpServletRequest request) {
+
+        User buyer = getCurrentUser();
+
+        try {
+            // Kiểm tra order
+            Orders order = orderService.getOrderById(orderId);
+
+            if (!order.getUsers().getUserid().equals(buyer.getUserid())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "Bạn không có quyền thanh toán đơn hàng này"
+                ));
+            }
+
+            // Kiểm tra đây có phải đơn PIN không
+            if (!orderService.isBatteryOrder(order)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "Đơn hàng này không phải là đơn PIN"
+                ));
+            }
+
+            // Kiểm tra trạng thái
+            if (!OrderStatus.CHO_THANH_TOAN.equals(order.getStatus())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "error",
+                        "message", "Đơn hàng không ở trạng thái chờ thanh toán"
+                ));
+            }
+
+            // REDIRECT SANG PAYMENT CONTROLLER
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Vui lòng thanh toán qua VNPay");
+            response.put("orderId", orderId);
+            response.put("paymentAmount", order.getTotalfinal());
+            response.put("nextStep", Map.of(
+                    "endpoint", "/api/payment/create-payment-url",
+                    "method", "POST",
+                    "params", Map.of(
+                            "orderId", orderId,
+                            "transactionType", "BATTERY_PAYMENT"
+                    )
+            ));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * ĐẶT CỌC 10% CHO ĐƠN HÀNG XE - REDIRECT SANG VNPAY 1. Buyer gọi API này 2.
+     * BE tạo transaction record (PENDING) 3. BE tạo payment URL từ VNPay 4.
+     * Frontend redirect buyer sang VNPay 5. Buyer thanh toán trên VNPay 6.
+     * VNPay callback về /api/payment/vnpay-ipn 7. BE cập nhật transaction
+     * (SUCCESS) 8. BE tạo hợp đồng DocuSeal NOTE: API này CHỈ TẠO PAYMENT URL,
+     * không xử lý payment trực tiếp
      */
     @Operation(
             summary = "Đặt cọc 10% cho đơn hàng xe",
             description = "Lưu thông tin giao dịch (điểm giao dịch, thời gian hẹn) và redirect sang VNPay để thanh toán đặt cọc"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Thông tin đã lưu - Trả về hướng dẫn gọi API payment"),
-            @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc đơn hàng không hợp lệ")
+        @ApiResponse(responseCode = "200", description = "Thông tin đã lưu - Trả về hướng dẫn gọi API payment"),
+        @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc đơn hàng không hợp lệ")
     })
     @PostMapping("/orders/{orderId}/deposit")
     public ResponseEntity<Map<String, Object>> makeDeposit(
@@ -248,25 +361,25 @@ public class BuyerController {
             @Parameter(description = "Có đổi biển số không?")
             @RequestParam(required = false, defaultValue = "false") Boolean changePlate,
             HttpServletRequest request) {
-        
+
         User buyer = getCurrentUser();
-        
+
         try {
             // ============= VALIDATION =============
 
             // Validate transactionLocation
             if (transactionLocation == null || transactionLocation.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Vui lòng cung cấp điểm giao dịch (transactionLocation)"
+                        "status", "error",
+                        "message", "Vui lòng cung cấp điểm giao dịch (transactionLocation)"
                 ));
             }
 
             // Validate appointmentDate
             if (appointmentDate == null || appointmentDate.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Vui lòng cung cấp thời gian hẹn giao dịch (appointmentDate)"
+                        "status", "error",
+                        "message", "Vui lòng cung cấp thời gian hẹn giao dịch (appointmentDate)"
                 ));
             }
 
@@ -283,8 +396,8 @@ public class BuyerController {
                     parsedAppointmentDate = sdf.parse(appointmentDate);
                 } catch (Exception ex) {
                     return ResponseEntity.badRequest().body(Map.of(
-                        "status", "error",
-                        "message", "Định dạng appointmentDate không hợp lệ. Vui lòng dùng 'yyyy-MM-dd HH:mm:ss' hoặc timestamp"
+                            "status", "error",
+                            "message", "Định dạng appointmentDate không hợp lệ. Vui lòng dùng 'yyyy-MM-dd HH:mm:ss' hoặc timestamp"
                     ));
                 }
             }
@@ -292,30 +405,29 @@ public class BuyerController {
             // Validate appointmentDate phải là thời điểm trong tương lai
             if (parsedAppointmentDate.before(new Date())) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Thời gian hẹn giao dịch phải là thời điểm trong tương lai"
+                        "status", "error",
+                        "message", "Thời gian hẹn giao dịch phải là thời điểm trong tương lai"
                 ));
             }
 
             // ============= BUSINESS LOGIC =============
-
             // Kiểm tra order tồn tại và thuộc về buyer
             Orders order = orderService.getOrderById(orderId);
             if (order.getUsers().getUserid() != buyer.getUserid()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Bạn không có quyền thanh toán đơn hàng này"
+                        "status", "error",
+                        "message", "Bạn không có quyền thanh toán đơn hàng này"
                 ));
             }
-            
+
             // Kiểm tra order có phải xe không
             if (!orderService.isCarOrder(order)) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Chỉ đơn hàng xe mới cần đặt cọc"
+                        "status", "error",
+                        "message", "Chỉ đơn hàng xe mới cần đặt cọc"
                 ));
             }
-            
+
             // Lưu thông tin giao dịch vào order
             order.setTransactionLocation(transactionLocation);
             order.setAppointmentDate(parsedAppointmentDate);
@@ -333,17 +445,17 @@ public class BuyerController {
             response.put("transferOwnership", transferOwnership);
             response.put("changePlate", changePlate);
             response.put("nextStep", Map.of(
-                "endpoint", "/api/payment/create-payment-url",
-                "method", "POST",
-                "params", Map.of(
-                    "orderId", orderId,
-                    "transactionType", "DEPOSIT"
-                ),
-                "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect buyer sang VNPay"
+                    "endpoint", "/api/payment/create-payment-url",
+                    "method", "POST",
+                    "params", Map.of(
+                            "orderId", orderId,
+                            "transactionType", "DEPOSIT"
+                    ),
+                    "note", "Frontend cần gọi API này để lấy paymentUrl, sau đó redirect buyer sang VNPay"
             ));
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
@@ -353,12 +465,9 @@ public class BuyerController {
     }
 
     /**
-     * THANH TOÁN PHẦN CÒN LẠI (90%) - REDIRECT SANG VNPAY
-     * 1. Buyer đã đặt cọc 10%
-     * 2. Manager đã duyệt order
-     * 3. Buyer đến điểm giao dịch
-     * 4. Buyer gọi API này để thanh toán 90% còn lại
-     * 5. Redirect sang VNPay
+     * THANH TOÁN PHẦN CÒN LẠI (90%) - REDIRECT SANG VNPAY 1. Buyer đã đặt cọc
+     * 10% 2. Manager đã duyệt order 3. Buyer đến điểm giao dịch 4. Buyer gọi
+     * API này để thanh toán 90% còn lại 5. Redirect sang VNPay
      */
     @Operation(
             summary = "Thanh toán phần còn lại (90%)",
@@ -373,19 +482,19 @@ public class BuyerController {
             @Parameter(description = "Có đổi biển số không?")
             @RequestParam(required = false) Boolean changePlate,
             HttpServletRequest request) {
-        
+
         User buyer = getCurrentUser();
-        
+
         try {
             // Kiểm tra order
             Orders order = orderService.getOrderById(orderId);
             if (order.getUsers().getUserid() != buyer.getUserid()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Bạn không có quyền thanh toán đơn hàng này"
+                        "status", "error",
+                        "message", "Bạn không có quyền thanh toán đơn hàng này"
                 ));
             }
-            
+
             //Lưu thông tin transferOwnership, changePlate vào Orders
             if (transferOwnership != null) {
                 order.setTransferOwnership(transferOwnership);
@@ -400,20 +509,20 @@ public class BuyerController {
             response.put("status", "success");
             response.put("message", "Vui lòng gọi API Payment để thanh toán phần còn lại");
             response.put("nextStep", Map.of(
-                "endpoint", "/api/payment/create-payment-url",
-                "method", "POST",
-                "params", Map.of(
-                    "orderId", orderId,
-                    "transactionType", "FINAL_PAYMENT"
-                ),
-                "additionalInfo", Map.of(
-                    "transferOwnership", transferOwnership != null && transferOwnership,
-                    "changePlate", changePlate != null && changePlate
-                )
+                    "endpoint", "/api/payment/create-payment-url",
+                    "method", "POST",
+                    "params", Map.of(
+                            "orderId", orderId,
+                            "transactionType", "FINAL_PAYMENT"
+                    ),
+                    "additionalInfo", Map.of(
+                            "transferOwnership", transferOwnership != null && transferOwnership,
+                            "changePlate", changePlate != null && changePlate
+                    )
             ));
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "error");
@@ -431,12 +540,12 @@ public class BuyerController {
     public ResponseEntity<Map<String, Object>> getOrders() {
         User buyer = getCurrentUser();
         List<Orders> orders = orderService.getOrders(buyer.getUserid());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("orders", orders);
         response.put("totalOrders", orders.size());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -449,16 +558,16 @@ public class BuyerController {
             @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId) {
         User buyer = getCurrentUser();
-        
+
         try {
             List<Order_detail> details = orderService.getOrderDetails(orderId, buyer.getUserid());
             Orders order = orderService.getOrderById(orderId);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("order", order);
             response.put("details", details);
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -486,8 +595,8 @@ public class BuyerController {
             Orders order = orderService.getOrderById(orderId);
             if (order.getUsers().getUserid() != buyer.getUserid()) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Bạn không có quyền xem transactions của đơn hàng này"
+                        "status", "error",
+                        "message", "Bạn không có quyền xem transactions của đơn hàng này"
                 ));
             }
 
@@ -516,7 +625,7 @@ public class BuyerController {
     @PostMapping("/feedback")
     public ResponseEntity<Map<String, Object>> createFeedback(@Valid @RequestBody FeedbackRequest request) {
         User buyer = getCurrentUser();
-        
+
         Feedback feedback = feedbackService.createFeedbackFromBuyer(
                 buyer.getUserid(),
                 request.getOrderId(),
@@ -524,12 +633,12 @@ public class BuyerController {
                 request.getRating(),
                 request.getComment()
         );
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Đánh giá thành công");
         response.put("feedback", feedback);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -541,19 +650,19 @@ public class BuyerController {
     @PostMapping("/dispute")
     public ResponseEntity<Map<String, Object>> createDispute(@Valid @RequestBody DisputeRequest request) {
         User buyer = getCurrentUser();
-        
+
         Dispute dispute = disputeService.createDispute(
                 buyer.getUserid(),
                 request.getOrderId(),
                 request.getDescription(),
                 request.getReasonType()
         );
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Khiếu nại đã được gửi. Manager sẽ xử lý trong thời gian sớm nhất.");
         response.put("dispute", dispute);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -566,11 +675,11 @@ public class BuyerController {
     public ResponseEntity<Map<String, Object>> getDisputes() {
         User buyer = getCurrentUser();
         List<Dispute> disputes = disputeService.getDisputesByBuyer(buyer.getUserid());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("disputes", disputes);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -630,14 +739,14 @@ public class BuyerController {
             @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId) {
         User buyer = getCurrentUser();
-        
+
         Orders order = orderService.confirmReceipt(buyer.getUserid(), orderId);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Xác nhận nhận hàng thành công");
         response.put("order", order);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -690,9 +799,9 @@ public class BuyerController {
             description = "Buyer tham khảo giá thị trường trước khi mua xe/pin. Rate limit: 10 requests/minute/user, cache 24h."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Trả về gợi ý giá từ AI"),
-            @ApiResponse(responseCode = "429", description = "Vượt quá giới hạn rate limit"),
-            @ApiResponse(responseCode = "500", description = "Lỗi khi gọi AI API")
+        @ApiResponse(responseCode = "200", description = "Trả về gợi ý giá từ AI"),
+        @ApiResponse(responseCode = "429", description = "Vượt quá giới hạn rate limit"),
+        @ApiResponse(responseCode = "500", description = "Lỗi khi gọi AI API")
     })
     @PostMapping("/ai/suggest-price")
     public ResponseEntity<Map<String, Object>> suggestPrice(@Valid @RequestBody PriceSuggestionRequest request) {
@@ -710,10 +819,10 @@ public class BuyerController {
             response.put("year", request.getYear());
             response.put("condition", request.getCondition());
             response.put("priceSuggestion", Map.of(
-                "minPrice", aiResponse.getMinPrice(),
-                "maxPrice", aiResponse.getMaxPrice(),
-                "suggestedPrice", aiResponse.getSuggestedPrice(),
-                "marketInsight", aiResponse.getMarketInsight()
+                    "minPrice", aiResponse.getMinPrice(),
+                    "maxPrice", aiResponse.getMaxPrice(),
+                    "suggestedPrice", aiResponse.getSuggestedPrice(),
+                    "marketInsight", aiResponse.getMarketInsight()
             ));
             response.put("note", "Giá tham khảo từ Gemini AI. Giá thực tế có thể thay đổi tùy vào tình trạng cụ thể của sản phẩm.");
 
@@ -723,8 +832,8 @@ public class BuyerController {
             // Rate limit exceeded
             if (e.getMessage().contains("Rate limit exceeded")) {
                 return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage()
+                        "status", "error",
+                        "message", e.getMessage()
                 ));
             }
 
@@ -736,8 +845,46 @@ public class BuyerController {
         }
     }
 
+    //XÁC NHẬN ĐÃ NHẬN HÀNG/XE
+    @Operation(
+            summary = "Xác nhận đã nhận hàng/xe",
+            description = "Buyer xác nhận đã nhận hàng/xe sau khi giao dịch hoàn tất. Sau khi xác nhận, đơn hàng chuyển sang trạng thái DA_GIAO_HANG và bắt đầu đếm 7 ngày escrow release."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Xác nhận thành công"),
+        @ApiResponse(responseCode = "400", description = "Đơn hàng chưa thanh toán hoặc không hợp lệ"),
+        @ApiResponse(responseCode = "401", description = "Không có quyền xác nhận đơn này"),
+        @ApiResponse(responseCode = "404", description = "Không tìm thấy đơn hàng")
+    })
+    @PostMapping("/orders/{orderId}/confirm-delivery")
+    public ResponseEntity<Map<String, Object>> confirmDelivery(
+            @Parameter(description = "ID đơn hàng cần xác nhận", required = true)
+            @PathVariable Long orderId) {
+
+        try {
+            User buyer = getCurrentUser();
+
+            // confirmDelivery dành cho SELLER, confirmReceipt dành cho BUYER
+            Orders order = orderService.confirmReceipt(buyer.getUserid(), orderId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Đã xác nhận nhận hàng thành công");
+            response.put("orderId", orderId);
+            response.put("orderStatus", order.getStatus());
+            response.put("note", "Escrow sẽ được giải phóng sau 7 ngày nếu không có khiếu nại");
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(400).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
     // =============== HELPER METHODS ==================================================================================
-    
     private String uploadImageToCloudinary(MultipartFile file, String folderPath) throws Exception {
         // Sử dụng ImageUploadService có sẵn
         return imageUploadService.uploadImage(file, folderPath);

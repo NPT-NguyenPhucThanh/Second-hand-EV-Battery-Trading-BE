@@ -1,25 +1,46 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Repository.PackageServiceRepository;
-import com.project.tradingev_batter.Service.*;
-import com.project.tradingev_batter.dto.*;
-import com.project.tradingev_batter.Entity.Refund;
-import com.project.tradingev_batter.security.CustomUserDetails;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
+import com.project.tradingev_batter.Entity.Dispute;
+import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.PackageService;
+import com.project.tradingev_batter.Entity.Refund;
+import com.project.tradingev_batter.Entity.Role;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Repository.PackageServiceRepository;
+import com.project.tradingev_batter.Service.DisputeService;
+import com.project.tradingev_batter.Service.ManagerService;
+import com.project.tradingev_batter.Service.RefundService;
+import com.project.tradingev_batter.Service.UserService;
+import com.project.tradingev_batter.dto.DisputeResolutionRequest;
+import com.project.tradingev_batter.dto.LockRequest;
+import com.project.tradingev_batter.dto.RefundProcessRequest;
+import com.project.tradingev_batter.security.CustomUserDetails;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/manager")
 @Tag(name = "Manager APIs", description = "API dành cho quản trị viên cấp cao - Quản lý hệ thống, users, gói dịch vụ, doanh thu & báo cáo")
 public class ManagerController {
+
     private final ManagerService managerService;
     private final PackageServiceRepository packageServiceRepository;
     private final UserService userService;
@@ -27,10 +48,10 @@ public class ManagerController {
     private final RefundService refundService;
 
     public ManagerController(ManagerService managerService,
-                             PackageServiceRepository packageServiceRepository,
-                             UserService userService,
-                             DisputeService disputeService,
-                             RefundService refundService) {
+            PackageServiceRepository packageServiceRepository,
+            UserService userService,
+            DisputeService disputeService,
+            RefundService refundService) {
         this.managerService = managerService;
         this.packageServiceRepository = packageServiceRepository;
         this.userService = userService;
@@ -39,7 +60,6 @@ public class ManagerController {
     }
 
     // USER MANAGEMENT
-
     @Operation(summary = "Lấy danh sách tất cả người dùng")
     @GetMapping("/users")
     public ResponseEntity<Map<String, Object>> getAllUsers() {
@@ -50,20 +70,20 @@ public class ManagerController {
             response.put("status", "success");
             response.put("totalUsers", users.size());
             response.put("users", users.stream().map(user -> Map.of(
-                "userId", user.getUserid(),
-                "username", user.getUsername(),
-                "email", user.getEmail(),
-                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
-                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
-                "isActive", user.isIsactive(),
-                "roles", user.getRoles().stream().map(Role::getRolename).toList()
+                    "userId", user.getUserid(),
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
+                    "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
+                    "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                    "isActive", user.isIsactive(),
+                    "roles", user.getRoles().stream().map(Role::getRolename).toList()
             )).toList());
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải danh sách users: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải danh sách users: " + e.getMessage()
             ));
         }
     }
@@ -77,28 +97,28 @@ public class ManagerController {
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("user", Map.of(
-                "userId", user.getUserid(),
-                "username", user.getUsername(),
-                "email", user.getEmail(),
-                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
-                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
-                "isActive", user.isIsactive(),
-                "roles", user.getRoles().stream().map(Role::getRolename).toList(),
-                "createdAt", user.getCreated_at(),
-                "sellerUpgradeStatus", user.getSellerUpgradeStatus() != null ? user.getSellerUpgradeStatus() : "N/A"
+                    "userId", user.getUserid(),
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
+                    "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
+                    "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                    "isActive", user.isIsactive(),
+                    "roles", user.getRoles().stream().map(Role::getRolename).toList(),
+                    "createdAt", user.getCreated_at(),
+                    "sellerUpgradeStatus", user.getSellerUpgradeStatus() != null ? user.getSellerUpgradeStatus() : "N/A"
             ));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                "status", "error",
-                "message", "Không tìm thấy user: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không tìm thấy user: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Khóa hoặc mở khóa người dùng",
-               description = "Manager có thể khóa/mở khóa tài khoản người dùng")
+            description = "Manager có thể khóa/mở khóa tài khoản người dùng")
     @PostMapping("/users/{userId}/lock")
     public ResponseEntity<String> lockUser(@PathVariable Long userId, @RequestBody LockRequest request) {
         managerService.lockUser(userId, request.isLock());
@@ -106,7 +126,6 @@ public class ManagerController {
     }
 
     // PACKAGE SERVICE MANAGEMENT
-
     @Operation(summary = "Tạo gói dịch vụ mới")
     @PostMapping("/packages")
     public ResponseEntity<PackageService> createPackage(@RequestBody PackageService pkg) {
@@ -133,26 +152,25 @@ public class ManagerController {
     }
 
     // REVENUE & REPORTS
-
     @Operation(summary = "Lấy báo cáo doanh thu",
-               description = "Báo cáo tổng doanh thu từ xe, pin, gói dịch vụ, hoa hồng")
+            description = "Báo cáo tổng doanh thu từ xe, pin, gói dịch vụ, hoa hồng")
     @GetMapping("/reports/revenue")
     public ResponseEntity<Map<String, Object>> getRevenueReport() {
         return ResponseEntity.ok(managerService.getRevenueReport());
     }
 
     @Operation(summary = "Lấy báo cáo hệ thống",
-               description = "Báo cáo số lượng sản phẩm, đơn hàng, giao dịch, xu hướng thị trường")
+            description = "Báo cáo số lượng sản phẩm, đơn hàng, giao dịch, xu hướng thị trường")
     @GetMapping("/reports/system")
     public ResponseEntity<Map<String, Object>> getSystemReport() {
         return ResponseEntity.ok(managerService.getSystemReport());
     }
 
     // DISPUTE MANAGEMENT
-
     @Operation(summary = "Lấy danh sách tất cả disputes",
-               description = "Lấy tất cả các khiếu nại/tranh chấp trong hệ thống")
+            description = "Lấy tất cả các khiếu nại/tranh chấp trong hệ thống")
     @GetMapping("/disputes")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getAllDisputes() {
         try {
             List<Dispute> disputes = managerService.getAllDisputes();
@@ -197,23 +215,23 @@ public class ManagerController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải disputes: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải disputes: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Giải quyết dispute",
-               description = "Manager giải quyết khiếu nại: APPROVE_REFUND (hoàn tiền) hoặc REJECT_DISPUTE (từ chối)")
+            description = "Manager giải quyết khiếu nại: APPROVE_REFUND (hoàn tiền) hoặc REJECT_DISPUTE (từ chối)")
     @PostMapping("/disputes/{disputeId}/resolve")
     public ResponseEntity<Map<String, Object>> resolveDispute(
             @PathVariable Long disputeId,
             @RequestBody DisputeResolutionRequest request) {
         try {
             Dispute resolvedDispute = disputeService.resolveDispute(
-                disputeId,
-                request.getDecision(),
-                request.getManagerNote()
+                    disputeId,
+                    request.getDecision(),
+                    request.getManagerNote()
             );
 
             Map<String, Object> response = new HashMap<>();
@@ -226,16 +244,15 @@ public class ManagerController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể giải quyết dispute: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể giải quyết dispute: " + e.getMessage()
             ));
         }
     }
 
     // REFUND MANAGEMENT
-
     @Operation(summary = "Lấy danh sách tất cả refund requests",
-               description = "Lấy tất cả yêu cầu hoàn tiền trong hệ thống")
+            description = "Lấy tất cả yêu cầu hoàn tiền trong hệ thống")
     @GetMapping("/refunds")
     public ResponseEntity<Map<String, Object>> getAllRefunds() {
         try {
@@ -274,14 +291,14 @@ public class ManagerController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải refund requests: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải refund requests: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Xử lý refund request",
-               description = "Manager duyệt hoặc từ chối yêu cầu hoàn tiền")
+            description = "Manager duyệt hoặc từ chối yêu cầu hoàn tiền")
     @PostMapping("/refunds/{refundId}/process")
     public ResponseEntity<Map<String, Object>> processRefund(
             @PathVariable Long refundId,
@@ -290,11 +307,11 @@ public class ManagerController {
             User currentManager = getCurrentUser();
 
             Refund processedRefund = refundService.processRefund(
-                refundId,
-                currentManager.getUserid(),
-                request.getRefundMethod(),
-                request.isApprove(),
-                request.getNote()
+                    refundId,
+                    currentManager.getUserid(),
+                    request.getRefundMethod(),
+                    request.isApprove(),
+                    request.getNote()
             );
 
             Map<String, Object> response = new HashMap<>();
@@ -308,14 +325,14 @@ public class ManagerController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể xử lý refund: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể xử lý refund: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Lấy chi tiết refund request",
-               description = "Lấy thông tin chi tiết của một yêu cầu hoàn tiền")
+            description = "Lấy thông tin chi tiết của một yêu cầu hoàn tiền")
     @GetMapping("/refunds/{refundId}")
     public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
         try {
@@ -343,18 +360,18 @@ public class ManagerController {
                 User buyer = order.getUsers();
                 if (buyer != null) {
                     refundData.put("buyer", Map.of(
-                        "userId", buyer.getUserid(),
-                        "username", buyer.getUsername(),
-                        "displayName", buyer.getDisplayname() != null ? buyer.getDisplayname() : "N/A",
-                        "email", buyer.getEmail()
+                            "userId", buyer.getUserid(),
+                            "username", buyer.getUsername(),
+                            "displayName", buyer.getDisplayname() != null ? buyer.getDisplayname() : "N/A",
+                            "email", buyer.getEmail()
                     ));
                 }
             }
 
             if (refund.getProcessedBy() != null) {
                 refundData.put("processedBy", Map.of(
-                    "userId", refund.getProcessedBy().getUserid(),
-                    "username", refund.getProcessedBy().getUsername()
+                        "userId", refund.getProcessedBy().getUserid(),
+                        "username", refund.getProcessedBy().getUsername()
                 ));
             }
 
@@ -363,14 +380,14 @@ public class ManagerController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                "status", "error",
-                "message", "Không tìm thấy refund: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không tìm thấy refund: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Lấy thông tin tổng quan cho dashboard của quản lý",
-               description = "Dashboard hiển thị: pending tasks, revenue summary, market trends, quick stats")
+            description = "Dashboard hiển thị: pending tasks, revenue summary, market trends, quick stats")
     @GetMapping("/dashboard/overview")
     public ResponseEntity<Map<String, Object>> getDashboardOverview() {
         try {
@@ -417,14 +434,13 @@ public class ManagerController {
 
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải dashboard: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải dashboard: " + e.getMessage()
             ));
         }
     }
 
     // ============= HELPER METHODS ====================================================================================
-
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {

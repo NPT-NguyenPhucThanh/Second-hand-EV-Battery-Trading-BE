@@ -1,5 +1,11 @@
 package com.project.tradingev_batter.Service;
 
+import java.util.Date;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.project.tradingev_batter.Entity.Carts;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
@@ -9,13 +15,9 @@ import com.project.tradingev_batter.Repository.CartsRepository;
 import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Repository.UserRepository;
 import com.project.tradingev_batter.enums.ProductStatus;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Date;
-import java.util.Optional;
 
 @Service
 public class CartServiceImpl implements CartService {
@@ -29,9 +31,9 @@ public class CartServiceImpl implements CartService {
     private EntityManager entityManager;
 
     public CartServiceImpl(CartsRepository cartsRepository,
-                          CartItemRepository cartItemRepository,
-                          UserRepository userRepository,
-                          ProductRepository productRepository) {
+            CartItemRepository cartItemRepository,
+            UserRepository userRepository,
+            ProductRepository productRepository) {
         this.cartsRepository = cartsRepository;
         this.cartItemRepository = cartItemRepository;
         this.userRepository = userRepository;
@@ -43,14 +45,19 @@ public class CartServiceImpl implements CartService {
     public cart_items addToCart(Long userId, Long productId, int quantity) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        
+
+        // XE KHÔNG THỂ THÊM VÀO GIỎ HÀNG
+        if ("Car EV".equals(product.getType())) {
+            throw new RuntimeException("Xe điện không thể thêm vào giỏ hàng. Vui lòng mua ngay!");
+        }
+
         // Kiểm tra sản phẩm có đang bán không
         // Chỉ cho phép thêm vào giỏ nếu product status là DANG_BAN hoặc DA_DUYET
-        if (!ProductStatus.DANG_BAN.equals(product.getStatus()) &&
-            !ProductStatus.DA_DUYET.equals(product.getStatus())) {
+        if (!ProductStatus.DANG_BAN.equals(product.getStatus())
+                && !ProductStatus.DA_DUYET.equals(product.getStatus())) {
             throw new RuntimeException("Sản phẩm không khả dụng để mua. Status hiện tại: " + product.getStatus());
         }
 
@@ -58,7 +65,7 @@ public class CartServiceImpl implements CartService {
         if ("Battery".equals(product.getType()) && product.getAmount() < quantity) {
             throw new RuntimeException("Sản phẩm không đủ số lượng. Còn lại: " + product.getAmount());
         }
-        
+
         // Lấy hoặc tạo cart
         Carts cart = cartsRepository.findByUsers(user);
         if (cart == null) {
@@ -67,12 +74,12 @@ public class CartServiceImpl implements CartService {
             cart.setCreatedat(new Date());
             cart = cartsRepository.save(cart);
         }
-        
+
         // Kiểm tra xem sản phẩm đã có trong giỏ chưa
         Optional<cart_items> existingItem = cart.getCart_items().stream()
                 .filter(item -> item.getProducts().getProductid() == productId)
                 .findFirst();
-        
+
         if (existingItem.isPresent()) {
             // Cập nhật số lượng
             cart_items item = existingItem.get();
@@ -105,7 +112,7 @@ public class CartServiceImpl implements CartService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Carts cart = cartsRepository.findByUsers(user);
         if (cart == null) {
             // Tạo cart mới nếu chưa có
@@ -114,7 +121,7 @@ public class CartServiceImpl implements CartService {
             cart.setCreatedat(new Date());
             cart = cartsRepository.save(cart);
         }
-        
+
         // Force initialize lazy collections
         cart.getCart_items().size();
 
@@ -126,12 +133,12 @@ public class CartServiceImpl implements CartService {
     public void removeFromCart(Long userId, Long itemId) {
         cart_items item = cartItemRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Cart item not found"));
-        
+
         // Kiểm tra quyền sở hữu
         if (!item.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền xóa item này");
         }
-        
+
         // Lấy cart trước khi xóa
         Carts cart = item.getCarts();
 
@@ -158,16 +165,16 @@ public class CartServiceImpl implements CartService {
     public cart_items updateCartItemQuantity(Long userId, Long itemId, int quantity) {
         cart_items item = cartItemRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Cart item not found"));
-        
+
         // Kiểm tra quyền sở hữu
         if (!item.getUsers().getUserid().equals(userId)) {
             throw new RuntimeException("Bạn không có quyền cập nhật item này");
         }
-        
+
         if (quantity <= 0) {
             throw new RuntimeException("Số lượng phải lớn hơn 0");
         }
-        
+
         item.setQuantity(quantity);
         return cartItemRepository.save(item);
     }
@@ -176,7 +183,7 @@ public class CartServiceImpl implements CartService {
     @Transactional(readOnly = true)
     public double calculateCartTotal(Long userId) {
         Carts cart = getCart(userId);
-        
+
         return cart.getCart_items().stream()
                 .mapToDouble(item -> item.getProducts().getCost() * item.getQuantity())
                 .sum();
@@ -186,11 +193,15 @@ public class CartServiceImpl implements CartService {
     @Transactional
     public void clearCart(Long userId) {
         Carts cart = getCart(userId);
-        cartItemRepository.deleteAll(cart.getCart_items());
+
+        // Clear the collection FIRST before deleting from DB
+        cart.getCart_items().clear();
         cart.setUpdatedat(new Date());
+
+        // Save cart with empty items collection
         cartsRepository.save(cart);
 
-        // Force flush và clear cache
+        // Force flush to persist changes
         entityManager.flush();
         entityManager.clear();
     }

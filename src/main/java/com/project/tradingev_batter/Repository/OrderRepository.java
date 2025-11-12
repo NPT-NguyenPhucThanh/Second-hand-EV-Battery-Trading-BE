@@ -41,4 +41,11 @@ public interface OrderRepository extends JpaRepository<Orders,Long> {
            "LEFT JOIN FETCH p.users " +
            "WHERE o.orderid = :orderId")
     java.util.Optional<Orders> findByIdWithDetails(Long orderId);
+
+    // Query tìm orders theo status với details (cho scheduled tasks)
+    @Query("SELECT DISTINCT o FROM Orders o " +
+           "LEFT JOIN FETCH o.details d " +
+           "LEFT JOIN FETCH d.products " +
+           "WHERE o.status = :status")
+    List<Orders> findByStatusWithDetails(OrderStatus status);
 }

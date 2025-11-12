@@ -27,7 +27,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByCreatedBy_Userid(Long userId);
     
     // Tìm các transaction đang escrow (giữ tiền 7 ngày)
-    @Query("SELECT t FROM Transaction t WHERE t.isEscrowed = true AND t.status = 'SUCCESS' AND t.escrowReleaseDate <= :currentDate")
+    // EAGER LOAD orders, details, products, users để tránh LazyInitializationException
+    @Query("SELECT DISTINCT t FROM Transaction t " +
+           "LEFT JOIN FETCH t.orders o " +
+           "LEFT JOIN FETCH o.details d " +
+           "LEFT JOIN FETCH d.products p " +
+           "LEFT JOIN FETCH p.users " +
+           "WHERE t.isEscrowed = true AND t.status = 'SUCCESS' AND t.escrowReleaseDate <= :currentDate")
     List<Transaction> findEscrowedTransactionsReadyToRelease(@Param("currentDate") Date currentDate);
     
     // Tìm transaction theo status

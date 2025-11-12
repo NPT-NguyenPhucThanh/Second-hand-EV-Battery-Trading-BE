@@ -3,6 +3,7 @@ package com.project.tradingev_batter.Controller;
 import com.project.tradingev_batter.Entity.*;
 import com.project.tradingev_batter.Repository.OrderRepository;
 import com.project.tradingev_batter.Repository.TransactionRepository;
+import com.project.tradingev_batter.Repository.ProductRepository;
 import com.project.tradingev_batter.Service.VNPayService;
 import com.project.tradingev_batter.Service.SellerService;
 import com.project.tradingev_batter.Service.DocuSealService;
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.text.SimpleDateFormat;
@@ -36,6 +38,7 @@ public class PaymentController {
     private final VNPayService vnPayService;
     private final TransactionRepository transactionRepository;
     private final OrderRepository orderRepository;
+    private final ProductRepository productRepository;
     private final SellerService sellerService;
     private final DocuSealService docuSealService;
     private final NotificationService notificationService;
@@ -43,12 +46,14 @@ public class PaymentController {
     public PaymentController(VNPayService vnPayService,
                            TransactionRepository transactionRepository,
                            OrderRepository orderRepository,
+                           ProductRepository productRepository,
                            SellerService sellerService,
                            DocuSealService docuSealService,
                            NotificationService notificationService) {
         this.vnPayService = vnPayService;
         this.transactionRepository = transactionRepository;
         this.orderRepository = orderRepository;
+        this.productRepository = productRepository;
         this.sellerService = sellerService;
         this.docuSealService = docuSealService;
         this.notificationService = notificationService;
@@ -183,8 +188,11 @@ public class PaymentController {
                 // Update transaction
                 updateTransactionFromVNPay(transaction, vnpayData);
 
+                // FETCH order with details để tránh LazyInitializationException
+                Orders order = orderRepository.findByIdWithDetails(transaction.getOrders().getOrderid())
+                        .orElseThrow(() -> new RuntimeException("Order not found"));
+
                 // Update order status
-                Orders order = transaction.getOrders();
                 updateOrderStatusAfterPayment(order, transaction);
 
                 log.info("Transaction processed via Return URL: {}", transactionCode);
@@ -424,7 +432,8 @@ public class PaymentController {
         log.info("Transaction updated: {} - Status: {}", transaction.getTransactionCode(), transaction.getStatus());
     }
 
-    private void updateOrderStatusAfterPayment(Orders order, Transaction transaction) {
+    @Transactional // Đảm bảo tất cả thao tác trong method này được thực thi trong cùng 1 transaction
+    protected void updateOrderStatusAfterPayment(Orders order, Transaction transaction) {
         if (transaction.getStatus() == TransactionStatus.SUCCESS) {
             switch (transaction.getTransactionType()) {
                 case DEPOSIT:
@@ -484,36 +493,66 @@ public class PaymentController {
     //ĐÁNH DẤU SẢN PHẨM ĐÃ BÁN SAU KHI THANH TOÁN ĐẦY ĐỦ
     //Nếu amount > 1: giảm số lượng theo quantity đã mua
     //Nếu amount == 1 hoặc sau khi giảm mà amount == 0: chuyển status thành DA_BAN
-    private void markProductsAsSold(Orders order) {
+    @Transactional // Đảm bảo tất cả product updates được commit
+    protected void markProductsAsSold(Orders order) {
         try {
-            if (order.getDetails() != null && !order.getDetails().isEmpty()) {
-                for (Order_detail detail : order.getDetails()) {
-                    Product product = detail.getProducts();
-                    if (product != null) {
-                        int quantityOrdered = detail.getQuantity(); // Số lượng buyer đã mua
-                        int currentAmount = product.getAmount();    // Số lượng hiện có trong kho
+            log.info("========== START markProductsAsSold for Order #{} ==========", order.getOrderid());
 
-                        log.info("Processing product {}: current amount = {}, ordered quantity = {}",
-                                 product.getProductid(), currentAmount, quantityOrdered);
+            if (order.getDetails() == null || order.getDetails().isEmpty()) {
+                log.warn("Order #{} has no details", order.getOrderid());
+                return;
+            }
 
-                        if (currentAmount > quantityOrdered) {
-                            // Còn hàng trong kho → giảm số lượng
-                            product.setAmount(currentAmount - quantityOrdered);
-                            product.setUpdatedat(new Date());
-                            log.info("Product {} amount reduced to {}", product.getProductid(), product.getAmount());
-                        } else {
-                            // Hết hàng hoặc bán hết → chuyển status DA_BAN
-                            product.setAmount(0);
-                            product.setStatus(ProductStatus.DA_BAN);
-                            product.setUpdatedat(new Date());
-                            log.info("Product {} marked as SOLD (out of stock)", product.getProductid());
-                        }
-                        // Product sẽ được save tự động do cascade
-                    }
+            for (Order_detail detail : order.getDetails()) {
+                if (detail.getProducts() == null) {
+                    log.warn("Order detail {} has null product", detail.getDetailid());
+                    continue;
+                }
+
+                Long productId = detail.getProducts().getProductid();
+                int quantityOrdered = detail.getQuantity(); // Số lượng buyer đã mua
+
+                // FETCH FRESH DATA từ database để tránh cache
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
+
+                int currentAmount = product.getAmount();    // Số lượng hiện có trong kho
+
+                log.info(" Processing Product #{}: [{}]", product.getProductid(), product.getProductname());
+                log.info("   ├─ Current amount in stock: {}", currentAmount);
+                log.info("   ├─ Quantity ordered: {}", quantityOrdered);
+                log.info("   └─ Current status: {}", product.getStatus());
+
+                if (currentAmount > quantityOrdered) {
+                    // Còn hàng trong kho → giảm số lượng
+                    int newAmount = currentAmount - quantityOrdered;
+                    product.setAmount(newAmount);
+                    product.setUpdatedat(new Date());
+
+                    Product savedProduct = productRepository.saveAndFlush(product); // Use saveAndFlush
+
+                    log.info("✅ Amount reduced: {} → {} (Remaining in stock)", currentAmount, newAmount);
+                    log.info("   Product #{} saved successfully with new amount: {}",
+                             savedProduct.getProductid(), savedProduct.getAmount());
+                } else {
+                    // Hết hàng hoặc bán hết → chuyển status DA_BAN
+                    product.setAmount(0);
+                    product.setStatus(ProductStatus.DA_BAN);
+                    product.setUpdatedat(new Date());
+
+                    Product savedProduct = productRepository.saveAndFlush(product); // Use saveAndFlush
+
+                    log.info("✅ Product marked as SOLD OUT");
+                    log.info("   Status changed: {} → DA_BAN", product.getStatus());
+                    log.info("   Product #{} saved successfully", savedProduct.getProductid());
                 }
             }
+
+            log.info("========== END markProductsAsSold for Order #{} - SUCCESS ==========", order.getOrderid());
+
         } catch (Exception e) {
-            log.error("Error marking products as sold for order {}: {}", order.getOrderid(), e.getMessage());
+            log.error("❌ ERROR in markProductsAsSold for order #{}: {}", order.getOrderid(), e.getMessage(), e);
+            throw new RuntimeException("Failed to update product inventory: " + e.getMessage(), e);
         }
     }
 
@@ -524,7 +563,7 @@ public class PaymentController {
      * 3. Gửi email/notification cho buyer và seller ký
      * 4. Notify manager để duyệt
      */
-    private void createContractAfterDeposit(Orders order) {
+    protected void createContractAfterDeposit(Orders order) {
         try {
             // Fetch order với details để tránh lazy initialization
             order = orderRepository.findByIdWithDetails(order.getOrderid())

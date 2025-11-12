@@ -29,4 +29,7 @@ public interface OrderService {
     
     // Xác nhận nhận hàng (cho pin)
     Orders confirmReceipt(Long userId, Long orderId);
+
+    // Xác nhận giao hàng (cho cả pin và xe)
+    Orders confirmDelivery(Long userId, Long orderId);
 }

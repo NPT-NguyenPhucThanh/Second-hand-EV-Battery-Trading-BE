@@ -47,8 +47,19 @@ public class ScheduledTasksService {
     }
 
 
+    //CHẠY NGAY KHI SERVER KHỞI ĐỘNG
+    @org.springframework.context.event.EventListener(org.springframework.context.event.ContextRefreshedEvent.class)
+    public void onApplicationStartup() {
+        log.info("Server started - Running startup checks...");
+        releaseEscrowedTransactions();
+        autoConfirmBatteryOrders();
+        autoHideExpiredProducts();
+        log.info("Startup checks completed");
+    }
+
     //RELEASE ESCROW - Giải phóng tiền sau 7 ngày
     //Chạy mỗi ngày lúc 2 giờ sáng
+    //@Scheduled(cron = "0 */1 * * * ?") // Chạy mỗi 1 phút
     @Scheduled(cron = "0 0 2 * * ?") // 2:00 AM every day
     @Transactional
     public void releaseEscrowedTransactions() {
@@ -70,48 +81,45 @@ public class ScheduledTasksService {
                 try {
                     Orders order = transaction.getOrders();
                     double totalAmount = transaction.getAmount();
+                    Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
 
                     // Tính hoa hồng 5%
                     double commission = totalAmount * 0.05;
                     double sellerReceives = totalAmount - commission;
                     
-                    // Tạo transaction record cho commission
-                    Transaction commissionTransaction = new Transaction();
-                    commissionTransaction.setOrders(order);
-                    commissionTransaction.setAmount(commission);
-                    commissionTransaction.setTransactionType(com.project.tradingev_batter.enums.TransactionType.COMMISSION);
-                    commissionTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
-                    commissionTransaction.setMethod("PLATFORM_FEE");
-                    commissionTransaction.setDescription("Hoa hồng 5% từ đơn hàng #" + order.getOrderid());
-                    commissionTransaction.setCreatedat(new Date());
-                    commissionTransaction.setPaymentDate(new Date());
-                    transactionRepository.save(commissionTransaction);
+                    // 1. Tạo COMMISSION transaction (5% cho hệ thống)
+                    Transaction commissionTxn = createCommissionTransaction(order, commission, totalAmount);
+                    transactionRepository.save(commissionTxn);
 
-                    // Giải phóng tiền
+                    // 2. Tạo PAYOUT transaction (95% cho seller)
+                    Transaction payoutTxn = createPayoutTransaction(order, sellerReceives, sellerId, totalAmount);
+                    transactionRepository.save(payoutTxn);
+
+                    // 3. Đánh dấu escrow transaction đã release
                     transaction.setIsEscrowed(false);
                     transaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
+                    transaction.setDescription(transaction.getDescription() + " [Escrow released - Commission: " + commission + " VNĐ, Payout: " + sellerReceives + " VNĐ]");
                     transactionRepository.save(transaction);
 
-                    // Cập nhật order status thành DA_HOAN_TAT nếu chưa
+                    // 4. Cập nhật order status thành DA_HOAN_TAT
                     if (!OrderStatus.DA_HOAN_TAT.equals(order.getStatus())) {
                         order.setStatus(OrderStatus.DA_HOAN_TAT);
                         order.setUpdatedat(new Date());
                         orderRepository.save(order);
                     }
 
-                    log.info("Escrow released for transaction {}: Order #{}, Amount: {}, Commission: {}, Seller receives: {}",
+                    log.info("✅ Escrow released for transaction {}: Order #{}, Total: {} VNĐ → Commission: {} VNĐ (5%), Payout to Seller: {} VNĐ (95%)",
                             transaction.getTransactionCode(),
                             order.getOrderid(),
                             totalAmount,
                             commission,
                             sellerReceives);
                     
-                    // GUI NOTIFICATION CHO SELLER
-                    Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
+                    // 5. Gửi thông báo cho seller
                     notificationService.notifyEscrowReleased(sellerId, order.getOrderid(), totalAmount, commission);
 
                 } catch (Exception e) {
-                    log.error("Error releasing escrow for transaction {}", 
+                    log.error("Error releasing escrow for transaction {}",
                             transaction.getTransactionCode(), e);
                 }
             }
@@ -121,6 +129,48 @@ public class ScheduledTasksService {
         } catch (Exception e) {
             log.error("Error in escrow release job", e);
         }
+    }
+
+    //Tạo transaction ghi nhận hoa hồng 5% cho hệ thống
+    private Transaction createCommissionTransaction(Orders order, double commission, double originalAmount) {
+        Transaction commissionTransaction = new Transaction();
+        commissionTransaction.setOrders(order);
+        commissionTransaction.setAmount(commission);
+        commissionTransaction.setTransactionType(com.project.tradingev_batter.enums.TransactionType.COMMISSION);
+        commissionTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
+        commissionTransaction.setMethod("PLATFORM_FEE");
+        commissionTransaction.setDescription(String.format(
+            "Hoa hồng 5%% từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ)",
+            order.getOrderid(), commission, originalAmount
+        ));
+        commissionTransaction.setCreatedat(new Date());
+        commissionTransaction.setPaymentDate(new Date());
+        commissionTransaction.setIsEscrowed(false);
+        return commissionTransaction;
+    }
+
+    //Tạo transaction ghi nhận tiền chuyển cho seller (95%)
+    //Chưa có chuyển tiền thiệc :(
+    @SuppressWarnings("unused") // sellerId sẽ được dùng khi có wallet system
+    private Transaction createPayoutTransaction(Orders order, double payoutAmount, Long sellerId, double originalAmount) {
+        Transaction payoutTransaction = new Transaction();
+        payoutTransaction.setOrders(order);
+        payoutTransaction.setAmount(payoutAmount);
+        payoutTransaction.setTransactionType(com.project.tradingev_batter.enums.TransactionType.PAYOUT);
+        payoutTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
+        payoutTransaction.setMethod("BANK_TRANSFER"); // Hoặc "WALLET", "VNPAY_PAYOUT", v.v.
+        payoutTransaction.setDescription(String.format(
+            "Thanh toán cho người bán từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ sau khi trừ hoa hồng)",
+            order.getOrderid(), payoutAmount, originalAmount
+        ));
+        payoutTransaction.setCreatedat(new Date());
+        payoutTransaction.setPaymentDate(new Date());
+        payoutTransaction.setIsEscrowed(false);
+
+        // Nếu có user wallet system, cập nhật balance tại đây:
+        // walletService.creditSellerWallet(sellerId, payoutAmount);
+
+        return payoutTransaction;
     }
 
     //CANCEL EXPIRED PENDING TRANSACTIONS
@@ -180,18 +230,17 @@ public class ScheduledTasksService {
 
             Date threeDaysAgo = new Date(System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000));
 
-            List<Orders> ordersToConfirm = orderRepository.findAll().stream()
+            // SỬ DỤNG findByStatusWithDetails ĐỂ EAGER LOAD details
+            List<Orders> ordersToConfirm = orderRepository.findByStatusWithDetails(OrderStatus.DA_GIAO).stream()
                     .filter(order -> {
                         boolean isBatteryOrder = order.getDetails() != null &&
                                 order.getDetails().stream()
                                 .anyMatch(detail -> "Battery".equalsIgnoreCase(detail.getProducts().getType()));
 
-                        boolean isDelivered = OrderStatus.DA_GIAO.equals(order.getStatus());
-
                         boolean isOverThreeDays = order.getUpdatedat() != null &&
                                 order.getUpdatedat().before(threeDaysAgo);
 
-                        return isBatteryOrder && isDelivered && isOverThreeDays;
+                        return isBatteryOrder && isOverThreeDays;
                     })
                     .toList();
 
@@ -332,7 +381,7 @@ public class ScheduledTasksService {
                         userId,
                         "Gói dịch vụ sắp hết hạn",
                         String.format("Gói '%s' của bạn sẽ hết hạn sau %d ngày (ngày %s). Vui lòng gia hạn để tiếp tục đăng bán sản phẩm.",
-                                packageName, daysRemaining, expiryDate.toString())
+                                packageName, daysRemaining, expiryDate)
                     );
 
                     log.info("Notified user {} about package {} expiring in {} days",
