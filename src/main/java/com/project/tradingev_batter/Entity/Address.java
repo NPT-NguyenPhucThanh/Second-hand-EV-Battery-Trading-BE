@@ -1,8 +1,11 @@
 package com.project.tradingev_batter.Entity;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,11 +34,12 @@ public class Address {
 
     @Column(name = "country", columnDefinition = "NVARCHAR(100)")
     private String country;
-    
+
     @ManyToOne
     @JoinColumn(name = "userid")
     private User users;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "address")
     private List<Orders> ordersList = new ArrayList<>();
 }

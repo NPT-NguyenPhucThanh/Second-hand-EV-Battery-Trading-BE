@@ -1,6 +1,8 @@
 package com.project.tradingev_batter.Controller;
 
+import com.project.tradingev_batter.Entity.Address;
 import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Service.AddressService;
 import com.project.tradingev_batter.Service.ClientService;
 import com.project.tradingev_batter.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
@@ -8,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -27,13 +31,16 @@ import java.util.Map;
 public class ClientController {
 
     private final ClientService clientService;
+    private final AddressService addressService;
 
-    public ClientController(ClientService clientService) {
+    public ClientController(ClientService clientService,
+                            AddressService addressService) {
         this.clientService = clientService;
+        this.addressService = addressService;
     }
 
 
-     //Xem profile
+    //Xem profile
     @Operation(summary = "Xem thông tin profile", description = "Lấy thông tin chi tiết của người dùng đang đăng nhập")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Thành công - Trả về thông tin profile"),
@@ -44,11 +51,11 @@ public class ClientController {
     public ResponseEntity<Map<String, Object>> getProfile() {
         User user = getCurrentUser();
         User profile = clientService.getProfile(user.getUserid());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("profile", profile);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -95,7 +102,7 @@ public class ClientController {
     public ResponseEntity<Map<String, Object>> changePassword(
             @RequestParam String oldPassword,
             @RequestParam String newPassword) {
-        
+
         User user = getCurrentUser();
 
         Map<String, Object> response = new HashMap<>();
@@ -136,7 +143,7 @@ public class ClientController {
             @RequestParam("cccdBack") MultipartFile cccdBack) {
 
         User user = getCurrentUser();
-        
+
         try {
             // Validate file upload
             validateImageFile(cccdFront, "CCCD mặt trước");
@@ -144,18 +151,18 @@ public class ClientController {
 
             // Call service (không cần vehicleRegistration nữa)
             User updatedUser = clientService.requestSellerUpgrade(
-                    user.getUserid(), 
-                    cccdFront, 
+                    user.getUserid(),
+                    cccdFront,
                     cccdBack,
                     null // vehicleRegistration không còn bắt buộc
             );
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "Yêu cầu nâng cấp đã được gửi thành công. Vui lòng chờ Staff xét duyệt.");
             response.put("upgradeStatus", updatedUser.getSellerUpgradeStatus());
             response.put("requestDate", updatedUser.getSellerUpgradeRequestDate());
-            
+
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -181,17 +188,17 @@ public class ClientController {
     public ResponseEntity<Map<String, Object>> getSellerUpgradeStatus() {
         User user = getCurrentUser();
         User currentUser = clientService.getProfile(user.getUserid());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
-        
+
         if (currentUser.getSellerUpgradeStatus() == null) {
             response.put("upgradeStatus", "NOT_REQUESTED");
             response.put("message", "Bạn chưa gửi yêu cầu nâng cấp");
         } else {
             response.put("upgradeStatus", currentUser.getSellerUpgradeStatus());
             response.put("requestDate", currentUser.getSellerUpgradeRequestDate());
-            
+
             switch (currentUser.getSellerUpgradeStatus()) {
                 case "PENDING":
                     response.put("message", "Yêu cầu của bạn đang được xét duyệt");
@@ -205,7 +212,7 @@ public class ClientController {
                     break;
             }
         }
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -222,22 +229,22 @@ public class ClientController {
             @RequestParam("cccdFront") MultipartFile cccdFront,
             @RequestParam("cccdBack") MultipartFile cccdBack,
             @RequestParam(value = "vehicleRegistration", required = false) MultipartFile vehicleRegistration) {
-        
+
         User user = getCurrentUser();
-        
+
         try {
             User updatedUser = clientService.resubmitSellerUpgrade(
-                    user.getUserid(), 
-                    cccdFront, 
-                    cccdBack, 
+                    user.getUserid(),
+                    cccdFront,
+                    cccdBack,
                     vehicleRegistration
             );
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "Yêu cầu đã được gửi lại. Vui lòng chờ manager xét duyệt.");
             response.put("upgradeStatus", updatedUser.getSellerUpgradeStatus());
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -247,8 +254,60 @@ public class ClientController {
         }
     }
 
+    @Operation(summary = "Lấy danh sách địa chỉ của user", description = "Lấy tất cả địa chỉ đã lưu của user đang đăng nhập")
+    @GetMapping("/addresses")
+    public ResponseEntity<Map<String, Object>> getAddresses() {
+        User user = getCurrentUser();
+        List<Address> addresses = addressService.getAddresses(user.getUserid());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("addresses", addresses);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Thêm địa chỉ mới", description = "Thêm một địa chỉ mới cho user")
+    @PostMapping("/addresses")
+    public ResponseEntity<Map<String, Object>> addAddress(@Valid @RequestBody Address address) {
+        User user = getCurrentUser();
+        Address newAddress = addressService.addAddress(user.getUserid(), address);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Thêm địa chỉ thành công");
+        response.put("address", newAddress);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Cập nhật địa chỉ", description = "Cập nhật một địa chỉ đã có")
+    @PutMapping("/addresses/{addressId}")
+    public ResponseEntity<Map<String, Object>> updateAddress(
+            @PathVariable Long addressId,
+            @Valid @RequestBody Address address) throws Exception {
+        User user = getCurrentUser();
+        Address updatedAddress = addressService.updateAddress(user.getUserid(), addressId, address);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Cập nhật địa chỉ thành công");
+        response.put("address", updatedAddress);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Xóa địa chỉ", description = "Xóa một địa chỉ")
+    @DeleteMapping("/addresses/{addressId}")
+    public ResponseEntity<Map<String, Object>> deleteAddress(@PathVariable Long addressId) throws Exception {
+        User user = getCurrentUser();
+        addressService.deleteAddress(user.getUserid(), addressId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Xóa địa chỉ thành công");
+        return ResponseEntity.ok(response);
+    }
+
     // =============== HELPER METHODS ==================================================================================
-    
+
     /**
      * Validate file upload:
      * - Max size: 5MB
@@ -267,10 +326,10 @@ public class ClientController {
         // Check file type
         String contentType = file.getContentType();
         if (contentType == null ||
-            (!contentType.equals("image/jpeg") &&
-             !contentType.equals("image/jpg") &&
-             !contentType.equals("image/png") &&
-             !contentType.equals("application/pdf"))) {
+                (!contentType.equals("image/jpeg") &&
+                        !contentType.equals("image/jpg") &&
+                        !contentType.equals("image/png") &&
+                        !contentType.equals("application/pdf"))) {
             throw new IllegalArgumentException(fieldName + " chỉ chấp nhận định dạng: jpg, jpeg, png, pdf");
         }
     }
