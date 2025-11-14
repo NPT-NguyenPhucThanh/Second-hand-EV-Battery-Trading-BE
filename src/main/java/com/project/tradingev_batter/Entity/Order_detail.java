@@ -1,5 +1,6 @@
 package com.project.tradingev_batter.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,6 +25,7 @@ public class Order_detail {
 
     @ManyToOne
     @JoinColumn(name = "orderid")
+    @JsonIgnore
     private Orders orders;
 
     @ManyToOne

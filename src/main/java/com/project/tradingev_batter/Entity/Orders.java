@@ -64,7 +64,7 @@ public class Orders {
 
     @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
     @JsonIgnore
-    private List<Contracts>  contracts = new ArrayList<>();
+    private List<Contracts> contracts = new ArrayList<>();
 
     @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
     @JsonIgnore
@@ -75,7 +75,7 @@ public class Orders {
     private User users;
 
     @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
-    @JsonIgnore
+//    @JsonIgnore
     private List<Order_detail> details = new ArrayList<>();
 
     @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
