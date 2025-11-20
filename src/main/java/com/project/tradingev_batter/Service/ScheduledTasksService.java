@@ -1,5 +1,12 @@
 package com.project.tradingev_batter.Service;
 
+import java.util.Date;
+import java.util.List;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.Transaction;
@@ -11,19 +18,13 @@ import com.project.tradingev_batter.Repository.UserPackageRepository;
 import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 // 1. Release escrow sau 7 ngay (giai phong tien cho seller)
 // 2. Cancel pending transactions qua han
 // 3. Auto-confirm battery orders sau 3 ngay khong khieu nai
 // 4. Auto-hide products khi het han goi
-
 @Service
 @Slf4j
 public class ScheduledTasksService {
@@ -35,17 +36,16 @@ public class ScheduledTasksService {
     private final NotificationService notificationService;
 
     public ScheduledTasksService(TransactionRepository transactionRepository,
-                                 OrderRepository orderRepository,
-                                 ProductRepository productRepository,
-                                 UserPackageRepository userPackageRepository,
-                                 NotificationService notificationService) {
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            UserPackageRepository userPackageRepository,
+            NotificationService notificationService) {
         this.transactionRepository = transactionRepository;
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userPackageRepository = userPackageRepository;
         this.notificationService = notificationService;
     }
-
 
     //CHẠY NGAY KHI SERVER KHỞI ĐỘNG
     @org.springframework.context.event.EventListener(org.springframework.context.event.ContextRefreshedEvent.class)
@@ -65,28 +65,36 @@ public class ScheduledTasksService {
     public void releaseEscrowedTransactions() {
         try {
             log.info("Starting escrow release job...");
-            
+
             Date currentDate = new Date();
             List<Transaction> readyToRelease = transactionRepository
                     .findEscrowedTransactionsReadyToRelease(currentDate);
-            
+
             if (readyToRelease.isEmpty()) {
                 log.info("No transactions ready to release escrow");
                 return;
             }
-            
+
             log.info("Found {} transactions ready to release escrow", readyToRelease.size());
-            
+
             for (Transaction transaction : readyToRelease) {
                 try {
                     Orders order = transaction.getOrders();
+
+                    // Skip if order has no details
+                    if (order.getDetails() == null || order.getDetails().isEmpty()) {
+                        log.warn("Transaction {} has no order details, skipping escrow release",
+                                transaction.getTransid());
+                        continue;
+                    }
+
                     double totalAmount = transaction.getAmount();
                     Long sellerId = order.getDetails().get(0).getProducts().getUsers().getUserid();
 
                     // Tính hoa hồng 5%
                     double commission = totalAmount * 0.05;
                     double sellerReceives = totalAmount - commission;
-                    
+
                     // 1. Tạo COMMISSION transaction (5% cho hệ thống)
                     Transaction commissionTxn = createCommissionTransaction(order, commission, totalAmount);
                     transactionRepository.save(commissionTxn);
@@ -114,7 +122,7 @@ public class ScheduledTasksService {
                             totalAmount,
                             commission,
                             sellerReceives);
-                    
+
                     // 5. Gửi thông báo cho seller
                     notificationService.notifyEscrowReleased(sellerId, order.getOrderid(), totalAmount, commission);
 
@@ -123,9 +131,9 @@ public class ScheduledTasksService {
                             transaction.getTransactionCode(), e);
                 }
             }
-            
+
             log.info("Escrow release job completed. Released: {} transactions", readyToRelease.size());
-            
+
         } catch (Exception e) {
             log.error("Error in escrow release job", e);
         }
@@ -140,8 +148,8 @@ public class ScheduledTasksService {
         commissionTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
         commissionTransaction.setMethod("PLATFORM_FEE");
         commissionTransaction.setDescription(String.format(
-            "Hoa hồng 5%% từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ)",
-            order.getOrderid(), commission, originalAmount
+                "Hoa hồng 5%% từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ)",
+                order.getOrderid(), commission, originalAmount
         ));
         commissionTransaction.setCreatedat(new Date());
         commissionTransaction.setPaymentDate(new Date());
@@ -160,8 +168,8 @@ public class ScheduledTasksService {
         payoutTransaction.setStatus(com.project.tradingev_batter.enums.TransactionStatus.SUCCESS);
         payoutTransaction.setMethod("BANK_TRANSFER"); // Hoặc "WALLET", "VNPAY_PAYOUT", v.v.
         payoutTransaction.setDescription(String.format(
-            "Thanh toán cho người bán từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ sau khi trừ hoa hồng)",
-            order.getOrderid(), payoutAmount, originalAmount
+                "Thanh toán cho người bán từ đơn hàng #%d (%.0f VNĐ / %.0f VNĐ sau khi trừ hoa hồng)",
+                order.getOrderid(), payoutAmount, originalAmount
         ));
         payoutTransaction.setCreatedat(new Date());
         payoutTransaction.setPaymentDate(new Date());
@@ -169,7 +177,6 @@ public class ScheduledTasksService {
 
         // Nếu có user wallet system, cập nhật balance tại đây:
         // walletService.creditSellerWallet(sellerId, payoutAmount);
-
         return payoutTransaction;
     }
 
@@ -180,41 +187,41 @@ public class ScheduledTasksService {
     public void cancelExpiredPendingTransactions() {
         try {
             log.info("Starting expired pending transactions cleanup...");
-            
+
             Date expiredDate = new Date(System.currentTimeMillis() - (2 * 60 * 60 * 1000));
             List<Transaction> expiredTransactions = transactionRepository
                     .findExpiredPendingTransactions(expiredDate);
-            
+
             if (expiredTransactions.isEmpty()) {
                 log.info("No expired pending transactions found");
                 return;
             }
-            
+
             log.info("Found {} expired pending transactions", expiredTransactions.size());
-            
+
             for (Transaction transaction : expiredTransactions) {
                 try {
                     transaction.setStatus(TransactionStatus.CANCELLED);
                     transactionRepository.save(transaction);
-                    
+
                     log.info("Cancelled expired transaction: {}", transaction.getTransactionCode());
-                    
+
                     // GUI NOTIFICATION CHO USER
                     if (transaction.getCreatedBy() != null) {
                         notificationService.notifyTransactionCancelled(
-                            transaction.getCreatedBy().getUserid(),
-                            transaction.getTransactionCode()
+                                transaction.getCreatedBy().getUserid(),
+                                transaction.getTransactionCode()
                         );
                     }
 
                 } catch (Exception e) {
-                    log.error("Error cancelling transaction {}", 
+                    log.error("Error cancelling transaction {}",
                             transaction.getTransactionCode(), e);
                 }
             }
-            
+
             log.info("Expired transactions cleanup completed. Cancelled: {}", expiredTransactions.size());
-            
+
         } catch (Exception e) {
             log.error("Error in expired transactions cleanup", e);
         }
@@ -233,12 +240,12 @@ public class ScheduledTasksService {
             // SỬ DỤNG findByStatusWithDetails ĐỂ EAGER LOAD details
             List<Orders> ordersToConfirm = orderRepository.findByStatusWithDetails(OrderStatus.DA_GIAO).stream()
                     .filter(order -> {
-                        boolean isBatteryOrder = order.getDetails() != null &&
-                                order.getDetails().stream()
-                                .anyMatch(detail -> "Battery".equalsIgnoreCase(detail.getProducts().getType()));
+                        boolean isBatteryOrder = order.getDetails() != null
+                                && order.getDetails().stream()
+                                        .anyMatch(detail -> "Battery".equalsIgnoreCase(detail.getProducts().getType()));
 
-                        boolean isOverThreeDays = order.getUpdatedat() != null &&
-                                order.getUpdatedat().before(threeDaysAgo);
+                        boolean isOverThreeDays = order.getUpdatedat() != null
+                                && order.getUpdatedat().before(threeDaysAgo);
 
                         return isBatteryOrder && isOverThreeDays;
                     })
@@ -304,9 +311,9 @@ public class ScheduledTasksService {
                     Long userId = userPackage.getUser().getUserid();
 
                     List<Product> userProducts = productRepository.findByUsers_Userid(userId).stream()
-                            .filter(product ->
-                                ProductStatus.DANG_BAN.equals(product.getStatus()) ||
-                                ProductStatus.DA_DUYET.equals(product.getStatus())
+                            .filter(product
+                                    -> ProductStatus.DANG_BAN.equals(product.getStatus())
+                            || ProductStatus.DA_DUYET.equals(product.getStatus())
                             )
                             .toList();
 
@@ -356,9 +363,9 @@ public class ScheduledTasksService {
             Date sevenDaysLater = new Date(System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000));
 
             List<UserPackage> expiringPackages = userPackageRepository.findAll().stream()
-                    .filter(pkg -> pkg.getExpiryDate() != null &&
-                                   pkg.getExpiryDate().after(currentDate) &&
-                                   pkg.getExpiryDate().before(sevenDaysLater))
+                    .filter(pkg -> pkg.getExpiryDate() != null
+                    && pkg.getExpiryDate().after(currentDate)
+                    && pkg.getExpiryDate().before(sevenDaysLater))
                     .toList();
 
             if (expiringPackages.isEmpty()) {
@@ -378,10 +385,10 @@ public class ScheduledTasksService {
                     long daysRemaining = (expiryDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
 
                     notificationService.createNotification(
-                        userId,
-                        "Gói dịch vụ sắp hết hạn",
-                        String.format("Gói '%s' của bạn sẽ hết hạn sau %d ngày (ngày %s). Vui lòng gia hạn để tiếp tục đăng bán sản phẩm.",
-                                packageName, daysRemaining, expiryDate)
+                            userId,
+                            "Gói dịch vụ sắp hết hạn",
+                            String.format("Gói '%s' của bạn sẽ hết hạn sau %d ngày (ngày %s). Vui lòng gia hạn để tiếp tục đăng bán sản phẩm.",
+                                    packageName, daysRemaining, expiryDate)
                     );
 
                     log.info("Notified user {} about package {} expiring in {} days",

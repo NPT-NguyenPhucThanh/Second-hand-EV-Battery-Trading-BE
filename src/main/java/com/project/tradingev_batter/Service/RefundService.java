@@ -1,5 +1,11 @@
 package com.project.tradingev_batter.Service;
 
+import java.util.Date;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.project.tradingev_batter.Entity.Orders;
 import com.project.tradingev_batter.Entity.Refund;
 import com.project.tradingev_batter.Entity.Transaction;
@@ -11,11 +17,6 @@ import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.RefundStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import com.project.tradingev_batter.enums.TransactionType;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Date;
-import java.util.List;
 
 @Service
 public class RefundService {
@@ -25,8 +26,8 @@ public class RefundService {
     private final TransactionRepository transactionRepository;
 
     public RefundService(RefundRepository refundRepository,
-                        OrderRepository orderRepository,
-                        TransactionRepository transactionRepository) {
+            OrderRepository orderRepository,
+            TransactionRepository transactionRepository) {
         this.refundRepository = refundRepository;
         this.orderRepository = orderRepository;
         this.transactionRepository = transactionRepository;
@@ -103,15 +104,31 @@ public class RefundService {
     }
 
     //Lấy tất cả refund requests (cho Manager)
+    @Transactional(readOnly = true)
     public List<Refund> getAllRefunds() {
-        return refundRepository.findAll();
+        List<Refund> refunds = refundRepository.findAll();
+        // Force initialize lazy collections
+        refunds.forEach(refund -> {
+            if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+                refund.getOrders().getDetails().size(); // Trigger lazy load
+            }
+        });
+        return refunds;
     }
 
     //Lấy refund requests theo status
+    @Transactional(readOnly = true)
     public List<Refund> getRefundsByStatus(RefundStatus status) {
-        return refundRepository.findAll().stream()
+        List<Refund> refunds = refundRepository.findAll().stream()
                 .filter(refund -> refund.getStatus() == status)
                 .toList();
+        // Force initialize lazy collections
+        refunds.forEach(refund -> {
+            if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+                refund.getOrders().getDetails().size(); // Trigger lazy load
+            }
+        });
+        return refunds;
     }
 
     //Lấy refunds của một order

@@ -1,16 +1,19 @@
 package com.project.tradingev_batter.config;
 
-import com.project.tradingev_batter.security.JwtAuthenticationFilter;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import static org.springframework.security.config.Customizer.withDefaults;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,9 +23,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+import com.project.tradingev_batter.security.JwtAuthenticationFilter;
 
-import static org.springframework.security.config.Customizer.withDefaults;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableWebSecurity
@@ -42,56 +45,57 @@ public class SecurityConfig {
                 .cors(withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // === PUBLIC ENDPOINTS (GUEST) ===
-                        .requestMatchers("/api/auth/**").permitAll()
+                // === PUBLIC ENDPOINTS (GUEST) ===
+                .requestMatchers("/api/auth/**").permitAll()
+                // === PUBLIC API - Guest có thể xem products, sellers (không cần /api/guest) ===
+                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/sellers/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                // === SWAGGER/OPENAPI ENDPOINTS ===
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                // === WEBSOCKET ENDPOINTS ===
+                .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
 
-                        // === PUBLIC API - Guest có thể xem products, sellers (không cần /api/guest) ===
-                        .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/sellers/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
-
-                        // === SWAGGER/OPENAPI ENDPOINTS ===
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-
-                        // === WEBSOCKET ENDPOINTS ===
-                        .requestMatchers("/ws-chat/**").permitAll() // WebSocket endpoint
-
-                        // === DOCUSEAL WEBHOOK (MUST BE PUBLIC) ===
-                        .requestMatchers("/api/docuseal/webhook").permitAll()
-                        .requestMatchers("/api/docuseal/**").permitAll()
-
-                        // === VNPAY CALLBACK (MUST BE PUBLIC) ===
-                        .requestMatchers("/api/payment/vnpay-return").permitAll()
-                        .requestMatchers("/api/payment/vnpay-ipn").permitAll()
-                        .requestMatchers("/api/payment/mock-payment").permitAll()
-
-                        // === MANAGER ENDPOINTS (Admin only - highest privilege) ===
-                        .requestMatchers("/api/manager/**").hasRole("MANAGER")
-
-                        // === STAFF ENDPOINTS (Operations - duyệt xe, kiểm định, kho, tranh chấp) ===
-                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "MANAGER")
-
-                        // === SELLER ENDPOINTS ===
-                        .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
-
-                        // === BUYER ENDPOINTS (CLIENT đã được thay bằng BUYER) ===
-                        .requestMatchers("/api/buyer/**").hasAnyRole("BUYER", "SELLER", "MANAGER")
-
-                        // === CLIENT CONTROLLER - Dùng cho tất cả authenticated users ===
-                        .requestMatchers("/api/client/**").authenticated()
-
-                        // === CHAT ENDPOINTS - Tất cả authenticated users ===
-                        .requestMatchers("/api/chat/**").authenticated()
-
-                        // === NOTIFICATION ENDPOINTS ===
-                        .requestMatchers("/api/notifications/**").authenticated()
-
-                        // Tất cả các request khác yêu cầu authenticated
-                        .anyRequest().authenticated()
+                // === DOCUSEAL WEBHOOK (MUST BE PUBLIC) ===
+                .requestMatchers("/api/docuseal/webhook").permitAll()
+                .requestMatchers("/api/docuseal/**").permitAll()
+                // === VNPAY CALLBACK (MUST BE PUBLIC) ===
+                .requestMatchers("/api/payment/vnpay-return").permitAll()
+                .requestMatchers("/api/payment/vnpay-ipn").permitAll()
+                .requestMatchers("/api/payment/mock-payment").permitAll()
+                // === MANAGER ENDPOINTS (Admin only - highest privilege) ===
+                .requestMatchers("/api/manager/**").hasRole("MANAGER")
+                // === STAFF ENDPOINTS (Operations - duyệt xe, kiểm định, kho, tranh chấp) ===
+                .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "MANAGER")
+                // === SELLER ENDPOINTS ===
+                .requestMatchers("/api/seller/**").hasAnyRole("SELLER", "MANAGER")
+                // === BUYER ENDPOINTS (CLIENT đã được thay bằng BUYER) ===
+                .requestMatchers("/api/buyer/**").hasAnyRole("BUYER", "SELLER", "MANAGER")
+                // === CLIENT CONTROLLER - Dùng cho tất cả authenticated users ===
+                .requestMatchers("/api/client/**").authenticated()
+                // === CHAT ENDPOINTS - Tất cả authenticated users ===
+                .requestMatchers("/api/chat/**").authenticated()
+                // === NOTIFICATION ENDPOINTS ===
+                .requestMatchers("/api/notifications/**").authenticated()
+                // Tất cả các request khác yêu cầu authenticated
+                .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(ex -> ex
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    System.out.println("=== ACCESS DENIED ===");
+                    System.out.println("Request URI: " + request.getRequestURI());
+                    System.out.println("User: " + request.getUserPrincipal());
+                    System.out.println("Authorities: " + (request.getUserPrincipal() != null
+                            ? SecurityContextHolder.getContext().getAuthentication().getAuthorities() : "none"));
+                    System.out.println("Exception: " + accessDeniedException.getMessage());
+                    System.out.println("=====================");
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().write("Access Denied: " + accessDeniedException.getMessage());
+                })
+                );
 
         return http.build();
     }
