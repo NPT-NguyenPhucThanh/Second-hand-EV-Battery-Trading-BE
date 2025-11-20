@@ -1,32 +1,56 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Service.*;
-import com.project.tradingev_batter.dto.*;
-import com.project.tradingev_batter.security.CustomUserDetails;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
+import com.project.tradingev_batter.Entity.Dispute;
+import com.project.tradingev_batter.Entity.Notification;
+import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.Refund;
+import com.project.tradingev_batter.Entity.Role;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.UserPackage;
+import com.project.tradingev_batter.Service.DisputeService;
+import com.project.tradingev_batter.Service.ManagerService;
+import com.project.tradingev_batter.Service.RefundService;
+import com.project.tradingev_batter.Service.UserService;
+import com.project.tradingev_batter.dto.ApprovalRequest;
+import com.project.tradingev_batter.dto.SellerUpgradeApprovalRequest;
+import com.project.tradingev_batter.security.CustomUserDetails;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/staff")
 @Tag(name = "Staff APIs", description = "API dành cho nhân viên - Duyệt sản phẩm, kiểm định, quản lý kho, xử lý giao dịch & tranh chấp")
 public class StaffController {
+
     private final ManagerService managerService;
     private final DisputeService disputeService;
     private final RefundService refundService;
     private final UserService userService;
 
     public StaffController(ManagerService managerService,
-                          DisputeService disputeService,
-                          RefundService refundService,
-                          UserService userService) {
+            DisputeService disputeService,
+            RefundService refundService,
+            UserService userService) {
         this.managerService = managerService;
         this.disputeService = disputeService;
         this.refundService = refundService;
@@ -34,7 +58,6 @@ public class StaffController {
     }
 
     // PRODUCT APPROVAL va` INSPECTION
-
     @Operation(summary = "Lấy danh sách thông báo cho nhân viên")
     @GetMapping("/notifications/{staffId}")
     public ResponseEntity<List<Notification>> getNotifications(@PathVariable Long staffId) {
@@ -42,7 +65,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Lấy danh sách bài đăng cần duyệt",
-               description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ DUYỆT")
+            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ DUYỆT")
     @GetMapping("/products/pending-approval")
     public ResponseEntity<Map<String, Object>> getPendingProducts() {
         List<Product> pendingProducts = managerService.getPendingApprovalProducts();
@@ -56,7 +79,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Lấy danh sách sản phẩm đang chờ kiểm định",
-               description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ KIỂM ĐỊNH")
+            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ KIỂM ĐỊNH")
     @GetMapping("/products/pending-inspection")
     public ResponseEntity<Map<String, Object>> getPendingInspectionProducts() {
         List<Product> pendingInspection = managerService.getPendingInspectionProducts();
@@ -70,7 +93,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Duyệt sản phẩm (giai đoạn sơ bộ)",
-               description = "Staff duyệt sơ bộ thông tin sản phẩm xe trước khi chuyển đi kiểm định")
+            description = "Staff duyệt sơ bộ thông tin sản phẩm xe trước khi chuyển đi kiểm định")
     @PostMapping("/products/{productId}/approve-preliminary")
     public ResponseEntity<String> approvePreliminary(
             @PathVariable Long productId,
@@ -80,7 +103,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Nhập kết quả kiểm định sản phẩm",
-               description = "Staff nhập kết quả kiểm định từ bên thứ ba vào hệ thống")
+            description = "Staff nhập kết quả kiểm định từ bên thứ ba vào hệ thống")
     @PostMapping("/products/{productId}/input-inspection")
     public ResponseEntity<String> inputInspection(
             @PathVariable Long productId,
@@ -90,7 +113,6 @@ public class StaffController {
     }
 
     // WAREHOUSE MANAGEMENT
-
     @Operation(summary = "Lấy danh sách sản phẩm trong kho")
     @GetMapping("/warehouse")
     public ResponseEntity<List<Product>> getWarehouse() {
@@ -104,7 +126,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Thêm sản phẩm vào kho",
-               description = "Staff thêm sản phẩm đã đạt kiểm định vào kho")
+            description = "Staff thêm sản phẩm đã đạt kiểm định vào kho")
     @PostMapping("/warehouse/add/{productId}")
     public ResponseEntity<String> addToWarehouse(@PathVariable Long productId) {
         managerService.addToWarehouse(productId);
@@ -131,10 +153,10 @@ public class StaffController {
     }
 
     //  ORDER MANAGEMENT
-
     @Operation(summary = "Lấy danh sách tất cả đơn hàng",
-               description = "Staff lấy danh sách tất cả đơn hàng trong hệ thống")
+            description = "Staff lấy danh sách tất cả đơn hàng trong hệ thống")
     @GetMapping("/orders")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getAllOrders() {
         List<Orders> orders = managerService.getAllOrders();
 
@@ -147,8 +169,9 @@ public class StaffController {
     }
 
     @Operation(summary = "Lấy danh sách đơn hàng theo trạng thái",
-               description = "Staff lấy danh sách đơn hàng theo status (CHO_DUYET, DA_DUYET, DANG_GIAO_DICH, DA_HOAN_TAT, BI_TU_CHOI, TRANH_CHAP, etc.)")
+            description = "Staff lấy danh sách đơn hàng theo status (CHO_DUYET, DA_DUYET, DANG_GIAO_DICH, DA_HOAN_TAT, BI_TU_CHOI, TRANH_CHAP, etc.)")
     @GetMapping("/orders/status/{status}")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getOrdersByStatus(@PathVariable String status) {
         List<Orders> orders = managerService.getOrdersByStatus(status);
 
@@ -162,7 +185,7 @@ public class StaffController {
     }
 
     @Operation(summary = "Duyệt đơn hàng",
-               description = "Staff duyệt hoặc từ chối đơn hàng sau khi buyer đặt cọc")
+            description = "Staff duyệt hoặc từ chối đơn hàng sau khi buyer đặt cọc")
     @PostMapping("/orders/{orderId}/approve")
     public ResponseEntity<String> approveOrder(
             @PathVariable Long orderId,
@@ -172,9 +195,8 @@ public class StaffController {
     }
 
     // DISPUTE RESOLUTION
-
     @Operation(summary = "Giải quyết tranh chấp",
-               description = "Staff xử lý tranh chấp giữa buyer và seller. Decision: APPROVE_REFUND hoặc REJECT_DISPUTE")
+            description = "Staff xử lý tranh chấp giữa buyer và seller. Decision: APPROVE_REFUND hoặc REJECT_DISPUTE")
     @SuppressWarnings("unchecked")
     @PostMapping("/disputes/{disputeId}/resolve")
     public ResponseEntity<Map<String, Object>> resolveDispute(
@@ -215,9 +237,9 @@ public class StaffController {
     }
 
     // REFUND MANAGEMENT
-
     @Operation(summary = "Lấy tất cả các yêu cầu hoàn tiền")
     @GetMapping("/refunds")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getAllRefunds() {
         List<Refund> refunds = refundService.getAllRefunds();
 
@@ -231,6 +253,7 @@ public class StaffController {
 
     @Operation(summary = "Lấy các yêu cầu hoàn tiền đang chờ xử lý")
     @GetMapping("/refunds/pending")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getPendingRefunds() {
         List<Refund> refunds = refundService.getRefundsByStatus(com.project.tradingev_batter.enums.RefundStatus.PENDING);
 
@@ -276,17 +299,17 @@ public class StaffController {
 
             if (approve && refundMethod == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Vui lòng chọn phương thức hoàn tiền"
+                        "status", "error",
+                        "message", "Vui lòng chọn phương thức hoàn tiền"
                 ));
             }
 
             Refund processedRefund = refundService.processRefund(
-                refundId,
-                staff.getUserid(),
-                refundMethod,
-                approve,
-                note
+                    refundId,
+                    staff.getUserid(),
+                    refundMethod,
+                    approve,
+                    note
             );
 
             Map<String, Object> response = new HashMap<>();
@@ -332,7 +355,6 @@ public class StaffController {
     }
 
     // SELLER UPGRADE APPROVAL
-
     @Operation(summary = "Lấy danh sách yêu cầu nâng cấp của người bán")
     @GetMapping("/seller-upgrade/requests")
     public ResponseEntity<Map<String, Object>> getPendingSellerUpgradeRequests() {
@@ -370,9 +392,8 @@ public class StaffController {
     }
 
     // USER MANAGEMENT (VIEW ONLY)
-
     @Operation(summary = "Lấy danh sách tất cả người dùng",
-               description = "Staff có thể xem danh sách users để tra cứu thông tin khi xử lý tranh chấp")
+            description = "Staff có thể xem danh sách users để tra cứu thông tin khi xử lý tranh chấp")
     @GetMapping("/users")
     public ResponseEntity<Map<String, Object>> getAllUsers() {
         try {
@@ -382,20 +403,20 @@ public class StaffController {
             response.put("status", "success");
             response.put("totalUsers", users.size());
             response.put("users", users.stream().map(user -> Map.of(
-                "userId", user.getUserid(),
-                "username", user.getUsername(),
-                "email", user.getEmail(),
-                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
-                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
-                "isActive", user.isIsactive(),
-                "roles", user.getRoles().stream().map(Role::getRolename).toList()
+                    "userId", user.getUserid(),
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
+                    "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
+                    "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                    "isActive", user.isIsactive(),
+                    "roles", user.getRoles().stream().map(Role::getRolename).toList()
             )).toList());
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải danh sách users: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải danh sách users: " + e.getMessage()
             ));
         }
     }
@@ -409,29 +430,29 @@ public class StaffController {
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("user", Map.of(
-                "userId", user.getUserid(),
-                "username", user.getUsername(),
-                "email", user.getEmail(),
-                "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
-                "phone", user.getPhone() != null ? user.getPhone() : "N/A",
-                "isActive", user.isIsactive(),
-                "roles", user.getRoles().stream().map(Role::getRolename).toList(),
-                "createdAt", user.getCreated_at(),
-                "sellerUpgradeStatus", user.getSellerUpgradeStatus()
+                    "userId", user.getUserid(),
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
+                    "displayName", user.getDisplayname() != null ? user.getDisplayname() : "N/A",
+                    "phone", user.getPhone() != null ? user.getPhone() : "N/A",
+                    "isActive", user.isIsactive(),
+                    "roles", user.getRoles().stream().map(Role::getRolename).toList(),
+                    "createdAt", user.getCreated_at(),
+                    "sellerUpgradeStatus", user.getSellerUpgradeStatus()
             ));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                "status", "error",
-                "message", "Không tìm thấy user: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không tìm thấy user: " + e.getMessage()
             ));
         }
     }
 
     // USER PACKAGE MANAGEMENT
     @Operation(summary = "Lấy danh sách tất cả người dùng đang sử dụng gói",
-               description = "Staff lấy danh sách tất cả user đang có gói package còn hiệu lực")
+            description = "Staff lấy danh sách tất cả user đang có gói package còn hiệu lực")
     @GetMapping("/user-packages/active")
     public ResponseEntity<Map<String, Object>> getAllActiveUserPackages() {
         try {
@@ -461,22 +482,22 @@ public class StaffController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải danh sách user packages: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải danh sách user packages: " + e.getMessage()
             ));
         }
     }
 
     @Operation(summary = "Lấy danh sách người dùng đang sử dụng gói theo loại",
-               description = "Staff lấy danh sách user đang có gói CAR hoặc BATTERY còn hiệu lực")
+            description = "Staff lấy danh sách user đang có gói CAR hoặc BATTERY còn hiệu lực")
     @GetMapping("/user-packages/active/type/{packageType}")
     public ResponseEntity<Map<String, Object>> getActiveUserPackagesByType(@PathVariable String packageType) {
         try {
             // Validate packageType
             if (!"CAR".equals(packageType) && !"BATTERY".equals(packageType)) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Package type phải là 'CAR' hoặc 'BATTERY'"
+                        "status", "error",
+                        "message", "Package type phải là 'CAR' hoặc 'BATTERY'"
                 ));
             }
 
@@ -506,14 +527,13 @@ public class StaffController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tải danh sách user packages: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tải danh sách user packages: " + e.getMessage()
             ));
         }
     }
 
     // ============= HELPER METHODS ====================================================================================
-
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails)) {
@@ -523,4 +543,3 @@ public class StaffController {
         return userDetails.getUser();
     }
 }
-

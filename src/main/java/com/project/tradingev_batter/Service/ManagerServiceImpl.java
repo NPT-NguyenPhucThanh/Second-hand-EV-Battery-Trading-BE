@@ -1,26 +1,46 @@
 package com.project.tradingev_batter.Service;
 
-import com.project.tradingev_batter.Entity.*;
-import com.project.tradingev_batter.Repository.*;
-import com.project.tradingev_batter.enums.ProductStatus;
-import com.project.tradingev_batter.enums.OrderStatus;
-import com.project.tradingev_batter.enums.DisputeStatus;
-import com.project.tradingev_batter.enums.RefundStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import lombok.extern.slf4j.Slf4j;
-
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Comparator;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.project.tradingev_batter.Entity.Contracts;
+import com.project.tradingev_batter.Entity.Dispute;
+import com.project.tradingev_batter.Entity.Notification;
+import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.PackageService;
+import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.Refund;
+import com.project.tradingev_batter.Entity.Role;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.UserPackage;
+import com.project.tradingev_batter.Repository.DisputeRepository;
+import com.project.tradingev_batter.Repository.NotificationRepository;
+import com.project.tradingev_batter.Repository.OrderRepository;
+import com.project.tradingev_batter.Repository.PackageServiceRepository;
+import com.project.tradingev_batter.Repository.ProductRepository;
+import com.project.tradingev_batter.Repository.RefundRepository;
+import com.project.tradingev_batter.Repository.RoleRepository;
+import com.project.tradingev_batter.Repository.UserPackageRepository;
+import com.project.tradingev_batter.Repository.UserRepository;
+import com.project.tradingev_batter.enums.DisputeStatus;
+import com.project.tradingev_batter.enums.OrderStatus;
+import com.project.tradingev_batter.enums.ProductStatus;
+import com.project.tradingev_batter.enums.RefundStatus;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
 public class ManagerServiceImpl implements ManagerService {
+
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
@@ -34,16 +54,16 @@ public class ManagerServiceImpl implements ManagerService {
     private final UserPackageRepository userPackageRepository;
 
     public ManagerServiceImpl(NotificationRepository notificationRepository,
-                              UserRepository userRepository,
-                              ProductRepository productRepository,
-                              OrderRepository orderRepository,
-                              DisputeRepository disputeRepository,
-                              RoleRepository roleRepository,
-                              PackageServiceRepository packageServiceRepository,
-                              RefundRepository refundRepository,
-                              DocuSealService docuSealService,
-                              NotificationService notificationService,
-                              UserPackageRepository userPackageRepository) {
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            OrderRepository orderRepository,
+            DisputeRepository disputeRepository,
+            RoleRepository roleRepository,
+            PackageServiceRepository packageServiceRepository,
+            RefundRepository refundRepository,
+            DocuSealService docuSealService,
+            NotificationService notificationService,
+            UserPackageRepository userPackageRepository) {
         this.refundRepository = refundRepository;
         this.packageServiceRepository = packageServiceRepository;
         this.docuSealService = docuSealService;
@@ -100,18 +120,18 @@ public class ManagerServiceImpl implements ManagerService {
             product.setStatus(ProductStatus.CHO_KIEM_DUYET);
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.notifyProductApproved(
-                product.getUsers().getUserid(),
-                productId,
-                product.getProductname()
+                    product.getUsers().getUserid(),
+                    productId,
+                    product.getProductname()
             );
         } else {
             product.setStatus(ProductStatus.BI_TU_CHOI);
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.notifyProductRejected(
-                product.getUsers().getUserid(),
-                productId,
-                product.getProductname(),
-                note
+                    product.getUsers().getUserid(),
+                    productId,
+                    product.getProductname(),
+                    note
             );
         }
         productRepository.save(product);
@@ -126,52 +146,52 @@ public class ManagerServiceImpl implements ManagerService {
     public void inputInspectionResult(Long productId, boolean passed, String note) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        
+
         if (passed) {
             product.setStatus(ProductStatus.DA_DUYET);
 
             // TAO HOP DONG DIEN TU QUA DOCUSEAL
             User seller = product.getUsers();
             User manager = getCurrentManager();
-            
+
             try {
                 // Goi DocuSealService de tao hop dong dang ban
                 Contracts contract = docuSealService.createProductListingContract(product, seller, manager);
-                
+
                 log.info("Product listing contract created via DocuSeal. Contract ID: {}, Submission ID: {}",
                         contract.getContractid(), contract.getDocusealSubmissionId());
-                
+
                 // SU DUNG NOTIFICATIONSERVICE
                 notificationService.notifyProductApproved(
-                    seller.getUserid(),
-                    productId,
-                    product.getProductname()
+                        seller.getUserid(),
+                        productId,
+                        product.getProductname()
                 );
 
             } catch (Exception e) {
                 log.error("Error creating DocuSeal contract for product: {}", productId, e);
-                
+
                 // SU DUNG NOTIFICATIONSERVICE cho loi
                 notificationService.createNotification(
-                    seller.getUserid(),
-                    "Loi tao hop dong dien tu",
-                    "Co loi xay ra khi tao hop dong dien tu. Vui long lien he ho tro. Loi: " + e.getMessage()
+                        seller.getUserid(),
+                        "Loi tao hop dong dien tu",
+                        "Co loi xay ra khi tao hop dong dien tu. Vui long lien he ho tro. Loi: " + e.getMessage()
                 );
 
                 // Revert status
                 product.setStatus(ProductStatus.CHO_KIEM_DUYET);
             }
-            
+
         } else {
             product.setStatus(ProductStatus.KHONG_DAT_KIEM_DINH);
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.notifyProductFailedInspection(
-                product.getUsers().getUserid(),
-                productId,
-                product.getProductname()
+                    product.getUsers().getUserid(),
+                    productId,
+                    product.getProductname()
             );
         }
-        
+
         productRepository.save(product);
     }
 
@@ -188,7 +208,7 @@ public class ManagerServiceImpl implements ManagerService {
     public void addToWarehouse(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        if(!"Car EV".equals(product.getType())) {
+        if (!"Car EV".equals(product.getType())) {
             throw new RuntimeException("Only Car EV products can be added to warehouse");
         }
         product.setInWarehouse(true);
@@ -199,7 +219,14 @@ public class ManagerServiceImpl implements ManagerService {
     @Override
     @Transactional(readOnly = true)
     public List<Orders> getAllOrders() {
-        return orderRepository.findAll();
+        List<Orders> orders = orderRepository.findAll();
+        // Force initialize lazy collections
+        orders.forEach(order -> {
+            if (order.getDetails() != null) {
+                order.getDetails().size(); // Trigger lazy load
+            }
+        });
+        return orders;
     }
 
     // Lấy orders theo status
@@ -208,9 +235,16 @@ public class ManagerServiceImpl implements ManagerService {
     public List<Orders> getOrdersByStatus(String status) {
         try {
             OrderStatus orderStatus = OrderStatus.valueOf(status);
-            return orderRepository.findAll().stream()
+            List<Orders> orders = orderRepository.findAll().stream()
                     .filter(o -> orderStatus.equals(o.getStatus()))
                     .toList();
+            // Force initialize lazy collections
+            orders.forEach(order -> {
+                if (order.getDetails() != null) {
+                    order.getDetails().size(); // Trigger lazy load
+                }
+            });
+            return orders;
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Invalid order status: " + status);
         }
@@ -225,14 +259,14 @@ public class ManagerServiceImpl implements ManagerService {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        if(approved){
+        if (approved) {
             order.setStatus(OrderStatus.DA_DUYET);
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.notifyOrderApproved(
-                order.getUsers().getUserid(),
-                orderId,
-                order.getAppointmentDate(),
-                order.getTransactionLocation()
+                    order.getUsers().getUserid(),
+                    orderId,
+                    order.getAppointmentDate(),
+                    order.getTransactionLocation()
             );
         } else {
             order.setStatus(OrderStatus.BI_TU_CHOI);
@@ -241,14 +275,13 @@ public class ManagerServiceImpl implements ManagerService {
 
             // SU DUNG NOTIFICATIONSERVICE
             notificationService.notifyOrderRejected(
-                order.getUsers().getUserid(),
-                orderId,
-                note
+                    order.getUsers().getUserid(),
+                    orderId,
+                    note
             );
         }
         orderRepository.save(order);
     }
-
 
     @Override
     public List<Dispute> getAllDisputes() {
@@ -257,7 +290,6 @@ public class ManagerServiceImpl implements ManagerService {
 
     // NOTE: resolveDispute đã được chuyển sang DisputeServiceImpl.resolveDispute()
     // ManagerController đang sử dụng DisputeService để xử lý dispute
-
     //Xử lý hoàn tiền đơn hàng bị từ chối (10% tiền cọc)
     //tạo refund với status "COMPLETED" (giả định auto-complete, integrate VnPay sau)
     @Override
@@ -462,14 +494,14 @@ public class ManagerServiceImpl implements ManagerService {
         // Doanh thu tu xe
         double carRevenue = completedOrders.stream()
                 .filter(o -> o.getDetails().stream()
-                        .anyMatch(d -> "Car EV".equals(d.getProducts().getType())))
+                .anyMatch(d -> "Car EV".equals(d.getProducts().getType())))
                 .mapToDouble(Orders::getTotalamount)
                 .sum();
 
         // Doanh thu tu pin
         double batteryRevenue = completedOrders.stream()
                 .filter(o -> o.getDetails().stream()
-                        .anyMatch(d -> "Battery".equals(d.getProducts().getType())))
+                .anyMatch(d -> "Battery".equals(d.getProducts().getType())))
                 .mapToDouble(Orders::getTotalamount)
                 .sum();
 
@@ -513,12 +545,12 @@ public class ManagerServiceImpl implements ManagerService {
         // Thong ke nguoi dung theo role
         long totalBuyers = userRepository.findAll().stream()
                 .filter(u -> u.getRoles().stream()
-                        .anyMatch(r -> "BUYER".equals(r.getRolename())))
+                .anyMatch(r -> "BUYER".equals(r.getRolename())))
                 .count();
 
         long totalSellers = userRepository.findAll().stream()
                 .filter(u -> u.getRoles().stream()
-                        .anyMatch(r -> "SELLER".equals(r.getRolename())))
+                .anyMatch(r -> "SELLER".equals(r.getRolename())))
                 .count();
 
         // Thong ke san pham
@@ -558,8 +590,8 @@ public class ManagerServiceImpl implements ManagerService {
         // Thong ke tranh chap
         long totalDisputes = disputeRepository.count();
         long openDisputes = disputeRepository.findAll().stream()
-                .filter(d -> DisputeStatus.OPEN.equals(d.getStatus()) ||
-                            DisputeStatus.IN_PROGRESS.equals(d.getStatus()))
+                .filter(d -> DisputeStatus.OPEN.equals(d.getStatus())
+                || DisputeStatus.IN_PROGRESS.equals(d.getStatus()))
                 .count();
 
         // San pham xem nhieu nhat - Xu huong thi truong
@@ -612,10 +644,10 @@ public class ManagerServiceImpl implements ManagerService {
         // Xu huong thi truong
         if (mostViewedProduct != null) {
             report.put("mostViewedProduct", Map.of(
-                "productId", mostViewedProduct.getProductid(),
-                "productName", mostViewedProduct.getProductname(),
-                "views", mostViewedProduct.getViewCount(),
-                "type", mostViewedProduct.getType()
+                    "productId", mostViewedProduct.getProductid(),
+                    "productName", mostViewedProduct.getProductname(),
+                    "views", mostViewedProduct.getViewCount(),
+                    "type", mostViewedProduct.getType()
             ));
         } else {
             report.put("mostViewedProduct", null);

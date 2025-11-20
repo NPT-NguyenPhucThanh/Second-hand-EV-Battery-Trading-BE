@@ -1,10 +1,9 @@
 package com.project.tradingev_batter.security;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,9 +13,11 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
+import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -48,6 +49,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String requestPath = request.getRequestURI();
 
+        // Log ALL requests to /api/staff
+        if (requestPath.startsWith("/api/staff")) {
+            System.out.println("=== FILTER RECEIVED REQUEST ===");
+            System.out.println("URI: " + requestPath);
+            System.out.println("Method: " + request.getMethod());
+            System.out.println("Has Auth Header: " + (request.getHeader("Authorization") != null));
+            System.out.println("================================");
+        }
+
         // Bypass JWT validation cho public endpoints
         if (isPublicEndpoint(requestPath)) {
             filterChain.doFilter(request, response);
@@ -58,6 +68,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Nếu không có Authorization header, tiếp tục filter chain
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            System.out.println("=== NO AUTH HEADER ===");
+            System.out.println("URI: " + requestPath);
+            System.out.println("Header value: " + authHeader);
+            System.out.println("=======================");
             filterChain.doFilter(request, response);
             return;
         }
@@ -68,6 +82,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+
+                //Log authorities
+                System.out.println("=== JWT Auth Debug ===");
+                System.out.println("Username: " + username);
+                System.out.println("Authorities: " + userDetails.getAuthorities());
+                System.out.println("Request URI: " + request.getRequestURI());
+                System.out.println("======================");
+
                 if (jwtService.isTokenValid(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
