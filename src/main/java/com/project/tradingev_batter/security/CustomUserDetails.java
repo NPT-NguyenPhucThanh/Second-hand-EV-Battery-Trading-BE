@@ -8,7 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-public class CustomUserDetails implements UserDetails {
+public class    CustomUserDetails implements UserDetails {
     private final User user;
     public CustomUserDetails(User user) {
         this.user = user;
