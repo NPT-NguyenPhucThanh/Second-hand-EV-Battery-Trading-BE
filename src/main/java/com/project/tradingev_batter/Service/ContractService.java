@@ -1,8 +1,8 @@
 package com.project.tradingev_batter.Service;
 
-import com.project.tradingev_batter.Entity.Contracts;
-
 import java.util.List;
+
+import com.project.tradingev_batter.Entity.Contracts;
 
 public interface ContractService {
 
@@ -23,5 +23,6 @@ public interface ContractService {
 
     // Lấy tất cả contract của seller
     List<Contracts> getSellerContracts(Long sellerId);
-}
 
+    List<Contracts> getBuyerContracts(Long buyerId);
+}

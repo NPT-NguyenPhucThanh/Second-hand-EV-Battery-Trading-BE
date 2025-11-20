@@ -49,8 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String requestPath = request.getRequestURI();
 
-        // Log ALL requests to /api/staff
-        if (requestPath.startsWith("/api/staff")) {
+        // Log ALL requests to /api/staff and /api/buyer
+        if (requestPath.startsWith("/api/staff") || requestPath.startsWith("/api/buyer")) {
             System.out.println("=== FILTER RECEIVED REQUEST ===");
             System.out.println("URI: " + requestPath);
             System.out.println("Method: " + request.getMethod());

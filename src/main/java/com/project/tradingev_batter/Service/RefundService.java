@@ -24,13 +24,16 @@ public class RefundService {
     private final RefundRepository refundRepository;
     private final OrderRepository orderRepository;
     private final TransactionRepository transactionRepository;
+    private final NotificationService notificationService;
 
     public RefundService(RefundRepository refundRepository,
             OrderRepository orderRepository,
-            TransactionRepository transactionRepository) {
+            TransactionRepository transactionRepository,
+            NotificationService notificationService) {
         this.refundRepository = refundRepository;
         this.orderRepository = orderRepository;
         this.transactionRepository = transactionRepository;
+        this.notificationService = notificationService;
     }
 
     //Tạo yêu cầu refund (gọi từ Buyer hoặc Manager)
@@ -89,6 +92,13 @@ public class RefundService {
             order.setStatus(OrderStatus.RESOLVED_WITH_REFUND);
             orderRepository.save(order);
 
+            // Gửi notification cho buyer
+            notificationService.createNotification(
+                    order.getUsers().getUserid(),
+                    "Yêu cầu hoàn tiền được chấp nhận",
+                    "Yêu cầu hoàn tiền cho đơn hàng #" + order.getOrderid() + " đã được chấp nhận. Số tiền " + refund.getAmount() + " VNĐ sẽ được hoàn lại qua " + refundMethod + "."
+            );
+
         } else {
             // TỪ CHỐI REFUND
             refund.setStatus(RefundStatus.REJECTED);
@@ -98,6 +108,13 @@ public class RefundService {
             User manager = new User();
             manager.setUserid(managerId);
             refund.setProcessedBy(manager);
+
+            // Gửi notification cho buyer
+            notificationService.createNotification(
+                    order.getUsers().getUserid(),
+                    "Yêu cầu hoàn tiền bị từ chối",
+                    "Yêu cầu hoàn tiền cho đơn hàng #" + order.getOrderid() + " đã bị từ chối. Lý do: " + (note != null ? note : "Không đủ căn cứ để hoàn tiền")
+            );
         }
 
         return refundRepository.save(refund);
@@ -110,7 +127,11 @@ public class RefundService {
         // Force initialize lazy collections
         refunds.forEach(refund -> {
             if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
-                refund.getOrders().getDetails().size(); // Trigger lazy load
+                refund.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
             }
         });
         return refunds;
@@ -125,7 +146,11 @@ public class RefundService {
         // Force initialize lazy collections
         refunds.forEach(refund -> {
             if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
-                refund.getOrders().getDetails().size(); // Trigger lazy load
+                refund.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
             }
         });
         return refunds;
@@ -140,7 +165,11 @@ public class RefundService {
         // Force initialize lazy collections
         refunds.forEach(refund -> {
             if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
-                refund.getOrders().getDetails().size();
+                refund.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
             }
         });
         return refunds;
@@ -160,7 +189,11 @@ public class RefundService {
                 .orElseThrow(() -> new RuntimeException("Refund không tồn tại"));
         // Force initialize lazy collections
         if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
-            refund.getOrders().getDetails().size(); // Trigger lazy load
+            refund.getOrders().getDetails().forEach(detail -> {
+                if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                    detail.getProducts().getImgs().size();
+                }
+            });
         }
         return refund;
     }

@@ -65,10 +65,18 @@ public class StaffController {
     }
 
     @Operation(summary = "Lấy danh sách bài đăng cần duyệt",
-            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ DUYỆT")
+            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỞ DUYỆT")
     @GetMapping("/products/pending-approval")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getPendingProducts() {
         List<Product> pendingProducts = managerService.getPendingApprovalProducts();
+
+        // Force initialize lazy collections
+        pendingProducts.forEach(product -> {
+            if (product.getImgs() != null) {
+                product.getImgs().size();
+            }
+        });
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
@@ -79,10 +87,18 @@ public class StaffController {
     }
 
     @Operation(summary = "Lấy danh sách sản phẩm đang chờ kiểm định",
-            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỜ KIỂM ĐỊNH")
+            description = "Staff lấy danh sách tất cả sản phẩm xe đang ở trạng thái CHỞ KIỂM ĐỊNH")
     @GetMapping("/products/pending-inspection")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getPendingInspectionProducts() {
         List<Product> pendingInspection = managerService.getPendingInspectionProducts();
+
+        // Force initialize lazy collections
+        pendingInspection.forEach(product -> {
+            if (product.getImgs() != null) {
+                product.getImgs().size();
+            }
+        });
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
@@ -115,14 +131,34 @@ public class StaffController {
     // WAREHOUSE MANAGEMENT
     @Operation(summary = "Lấy danh sách sản phẩm trong kho")
     @GetMapping("/warehouse")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Product>> getWarehouse() {
-        return ResponseEntity.ok(managerService.getWarehouseProducts());
+        List<Product> products = managerService.getWarehouseProducts();
+
+        // Force initialize lazy collections
+        products.forEach(product -> {
+            if (product.getImgs() != null) {
+                product.getImgs().size();
+            }
+        });
+
+        return ResponseEntity.ok(products);
     }
 
     @Operation(summary = "Lấy danh sách sản phẩm trong kho đang chờ xử lý")
     @GetMapping("/warehouse/pending")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<Product>> getPendingWarehouse() {
-        return ResponseEntity.ok(managerService.getPendingWarehouseProducts());
+        List<Product> products = managerService.getPendingWarehouseProducts();
+
+        // Force initialize lazy collections
+        products.forEach(product -> {
+            if (product.getImgs() != null) {
+                product.getImgs().size();
+            }
+        });
+
+        return ResponseEntity.ok(products);
     }
 
     @Operation(summary = "Thêm sản phẩm vào kho",
@@ -287,6 +323,7 @@ public class StaffController {
 
     @Operation(summary = "Nhân viên xử lý yêu cầu hoàn tiền")
     @PostMapping("/refunds/{refundId}/process")
+    @Transactional
     public ResponseEntity<Map<String, Object>> processRefund(
             @PathVariable Long refundId,
             @RequestBody Map<String, Object> request) {
@@ -312,6 +349,15 @@ public class StaffController {
                     approve,
                     note
             );
+
+            // Force initialize lazy collections
+            if (processedRefund.getOrders() != null && processedRefund.getOrders().getDetails() != null) {
+                processedRefund.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
+            }
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");

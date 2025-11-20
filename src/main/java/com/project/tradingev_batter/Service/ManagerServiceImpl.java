@@ -202,7 +202,7 @@ public class ManagerServiceImpl implements ManagerService {
     }
 
     //chỉ có product type "Car EV" mới được thêm vào kho
-    //khi thêm vào kho, set inWarehouse = true
+    //khi thêm vào kho, set inWarehouse = true và status = DANG_BAN
     @Override
     @Transactional
     public void addToWarehouse(Long productId) {
@@ -212,6 +212,7 @@ public class ManagerServiceImpl implements ManagerService {
             throw new RuntimeException("Only Car EV products can be added to warehouse");
         }
         product.setInWarehouse(true);
+        product.setStatus(ProductStatus.DANG_BAN); // Set status to display on platform
         productRepository.save(product);
     }
 
@@ -223,7 +224,11 @@ public class ManagerServiceImpl implements ManagerService {
         // Force initialize lazy collections
         orders.forEach(order -> {
             if (order.getDetails() != null) {
-                order.getDetails().size(); // Trigger lazy load
+                order.getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
             }
         });
         return orders;
@@ -241,7 +246,11 @@ public class ManagerServiceImpl implements ManagerService {
             // Force initialize lazy collections
             orders.forEach(order -> {
                 if (order.getDetails() != null) {
-                    order.getDetails().size(); // Trigger lazy load
+                    order.getDetails().forEach(detail -> {
+                        if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                            detail.getProducts().getImgs().size();
+                        }
+                    });
                 }
             });
             return orders;

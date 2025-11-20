@@ -1,18 +1,26 @@
 package com.project.tradingev_batter.Service;
 
-import com.project.tradingev_batter.Entity.Product;
-import com.project.tradingev_batter.Entity.product_img;
-import com.project.tradingev_batter.enums.ProductStatus;
-import com.project.tradingev_batter.Entity.User;
-import com.project.tradingev_batter.Repository.ProductRepository;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.User;
+import com.project.tradingev_batter.Entity.product_img;
+import com.project.tradingev_batter.Repository.ProductRepository;
+import com.project.tradingev_batter.enums.ProductStatus;
 
 @Service
 public class ProductServiceImpl implements ProductService {
+
     private final ProductRepository productRepository;
     private final UserService userService;
     private final ImageUploadService imageUploadService;
@@ -24,8 +32,16 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        List<Product> products = productRepository.findAll();
+        // Force initialize lazy-loaded imgs collection
+        products.forEach(product -> {
+            if (product.getImgs() != null) {
+                product.getImgs().size();
+            }
+        });
+        return products;
     }
 
     //Guest chỉ xem được sản phẩm đã duyệt và đang bán
@@ -38,14 +54,20 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Product getProductById(Long id) {
-        return productRepository.findById(id)
+        Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        // Force initialize lazy collections
+        if (product.getImgs() != null) {
+            product.getImgs().size();
+        }
+        return product;
     }
 
-     //INTERNAL USE ONLY - Tạo product cơ bản không kiểm tra gói
-     //CHÚ Ý!!!!!!!!!!!!!!: Method này chỉ dùng cho internal logic hoặc Manager/Admin
-     //SELLER PHẢI DÙNG SellerService.createCarProduct() hoặc createBatteryProduct() để có kiểm tra gói đầy đủ
+    //INTERNAL USE ONLY - Tạo product cơ bản không kiểm tra gói
+    //CHÚ Ý!!!!!!!!!!!!!!: Method này chỉ dùng cho internal logic hoặc Manager/Admin
+    //SELLER PHẢI DÙNG SellerService.createCarProduct() hoặc createBatteryProduct() để có kiểm tra gói đầy đủ
     @Override
     @Transactional
     public Product createProduct(Product product) {
@@ -112,7 +134,9 @@ public class ProductServiceImpl implements ProductService {
 
             // Split by "/upload/"
             String[] parts = imageUrl.split("/upload/");
-            if (parts.length < 2) return null;
+            if (parts.length < 2) {
+                return null;
+            }
 
             // Lấy phần sau "/upload/v{version}/"
             String afterUpload = parts[1];
@@ -135,9 +159,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<Product> searchAndFilterProducts(String type, String brand, Integer yearMin, Integer yearMax,
-                                                 Double capacityMin, Double capacityMax, String status, 
-                                                 Double priceMin, Double priceMax) {
-        return productRepository.findByFilters(type, brand, yearMin, yearMax, 
+            Double capacityMin, Double capacityMax, String status,
+            Double priceMin, Double priceMax) {
+        return productRepository.findByFilters(type, brand, yearMin, yearMax,
                 capacityMin, capacityMax, status, priceMin, priceMax);
     }
 
@@ -152,7 +176,7 @@ public class ProductServiceImpl implements ProductService {
     public List<String> getBrandsByType(String type) {
         List<Product> products = productRepository.findAll();
         Set<String> brands = new HashSet<>();
-        
+
         for (Product p : products) {
             if (type == null || type.equals(p.getType())) {
                 if (p.getBrandcars() != null && p.getBrandcars().getBrand() != null) {
@@ -163,7 +187,7 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
         }
-        
+
         return new ArrayList<>(brands);
     }
 
@@ -171,32 +195,32 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Map<String, Object> getPublicStatistics() {
         List<Product> activeProducts = getAllActiveProducts();
-        
+
         long totalCars = activeProducts.stream()
                 .filter(p -> "Car EV".equals(p.getType()))
                 .count();
-        
+
         long totalBatteries = activeProducts.stream()
                 .filter(p -> "Battery".equals(p.getType()))
                 .count();
-        
+
         // Tính giá trung bình
         double avgPrice = activeProducts.stream()
                 .mapToDouble(Product::getCost)
                 .average()
                 .orElse(0.0);
-        
+
         // Tìm giá thấp nhất và cao nhất
         double minPrice = activeProducts.stream()
                 .mapToDouble(Product::getCost)
                 .min()
                 .orElse(0.0);
-        
+
         double maxPrice = activeProducts.stream()
                 .mapToDouble(Product::getCost)
                 .max()
                 .orElse(0.0);
-        
+
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalProducts", activeProducts.size());
         stats.put("totalCars", totalCars);
@@ -204,7 +228,7 @@ public class ProductServiceImpl implements ProductService {
         stats.put("averagePrice", avgPrice);
         stats.put("priceRange", Map.of("min", minPrice, "max", maxPrice));
         stats.put("lastUpdated", new Date());
-        
+
         return stats;
     }
 

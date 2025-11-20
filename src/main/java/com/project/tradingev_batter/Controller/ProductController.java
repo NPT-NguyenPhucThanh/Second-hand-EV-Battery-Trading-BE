@@ -1,5 +1,20 @@
 package com.project.tradingev_batter.Controller;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.tradingev_batter.Entity.Feedback;
 import com.project.tradingev_batter.Entity.Product;
 import com.project.tradingev_batter.Entity.User;
@@ -9,41 +24,24 @@ import com.project.tradingev_batter.Service.ImageUploadService;
 import com.project.tradingev_batter.Service.ProductService;
 import com.project.tradingev_batter.Service.UserService;
 import com.project.tradingev_batter.dto.ProductDetailResponse;
-import com.project.tradingev_batter.dto.ProductRequest;
 import com.project.tradingev_batter.dto.SellerInfoResponse;
-import com.project.tradingev_batter.enums.ProductStatus;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import com.project.tradingev_batter.Entity.product_img;
-
-import java.io.IOException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
 @Tag(name = "Product APIs (Public/Manager)",
-     description = " API này CHỈ dành cho:\n" +
-                   "- Guest/Public: XEM sản phẩm (GET)\n" +
-                   "- Manager: XÓA sản phẩm vi phạm (DELETE)\n\n" +
-                   " Seller KHÔNG dùng API này để đăng bài!\n" +
-                   " Seller đăng bài tại:\n" +
-                   "- POST /api/seller/products/cars (đăng xe)\n" +
-                   "- POST /api/seller/products/batteries (đăng pin)")
+        description = " API này CHỈ dành cho:\n"
+        + "- Guest/Public: XEM sản phẩm (GET)\n"
+        + "- Manager: XÓA sản phẩm vi phạm (DELETE)\n\n"
+        + " Seller KHÔNG dùng API này để đăng bài!\n"
+        + " Seller đăng bài tại:\n"
+        + "- POST /api/seller/products/cars (đăng xe)\n"
+        + "- POST /api/seller/products/batteries (đăng pin)")
 public class ProductController {
 
     private final ProductService productService;
@@ -96,14 +94,20 @@ public class ProductController {
             description = "Public API - Lấy thông tin chi tiết của một sản phẩm (tự động tăng view count)"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Thành công"),
-            @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
+        @ApiResponse(responseCode = "200", description = "Thành công"),
+        @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
     })
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public ResponseEntity<ProductDetailResponse> getProductById(
             @Parameter(description = "ID của sản phẩm", required = true)
             @PathVariable Long id) {
         Product product = productService.getProductById(id);
+
+        // Force initialize imgs collection to avoid lazy loading error
+        if (product.getImgs() != null) {
+            product.getImgs().size();
+        }
 
         // Tự động tăng viewCount khi user/guest xem chi tiết sản phẩm
         try {
@@ -123,27 +127,36 @@ public class ProductController {
             description = "Public API - Xem profile người bán và danh sách sản phẩm đang bán"
     )
     @GetMapping("/seller/{sellerId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<SellerInfoResponse> getSellerInfo(@PathVariable Long sellerId) {
         User seller = userService.getUserById(sellerId);
         List<Product> products = productService.getProductsBySeller(sellerId);
+
+        // Force initialize imgs for each product
+        products.forEach(p -> {
+            if (p.getImgs() != null) {
+                p.getImgs().size();
+            }
+        });
+
         SellerInfoResponse response = new SellerInfoResponse(seller.getUsername(), seller.getDisplayname(), products);
         return ResponseEntity.ok(response);
     }
 
     @Operation(
             summary = "[MANAGER ONLY] Xóa sản phẩm vi phạm",
-            description = " Manager chỉ được XÓA sản phẩm vi phạm quy định.\n\n" +
-                    " Manager KHÔNG được:\n" +
-                    "- Tạo sản phẩm (chỉ Seller mới được đăng bài)\n" +
-                    "- Sửa sản phẩm (chỉ Seller chỉnh sửa bài của mình)\n\n" +
-                    " Manager được:\n" +
-                    "- Xóa sản phẩm vi phạm\n" +
-                    "- Duyệt/từ chối bài đăng tại /api/staff hoặc /api/manager"
+            description = " Manager chỉ được XÓA sản phẩm vi phạm quy định.\n\n"
+            + " Manager KHÔNG được:\n"
+            + "- Tạo sản phẩm (chỉ Seller mới được đăng bài)\n"
+            + "- Sửa sản phẩm (chỉ Seller chỉnh sửa bài của mình)\n\n"
+            + " Manager được:\n"
+            + "- Xóa sản phẩm vi phạm\n"
+            + "- Duyệt/từ chối bài đăng tại /api/staff hoặc /api/manager"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Xóa thành công"),
-            @ApiResponse(responseCode = "403", description = "Không có quyền"),
-            @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
+        @ApiResponse(responseCode = "200", description = "Xóa thành công"),
+        @ApiResponse(responseCode = "403", description = "Không có quyền"),
+        @ApiResponse(responseCode = "404", description = "Sản phẩm không tồn tại")
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> deleteProduct(
@@ -156,4 +169,3 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 }
-

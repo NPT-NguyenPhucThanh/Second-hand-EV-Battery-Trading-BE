@@ -1,16 +1,30 @@
 package com.project.tradingev_batter.Entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.project.tradingev_batter.enums.ProductStatus;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.project.tradingev_batter.enums.ProductStatus;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "products")
@@ -19,6 +33,7 @@ import java.util.List;
 @NoArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "cart_item", "order_detail", "posts"})
 public class Product {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "productid")
@@ -68,15 +83,14 @@ public class Product {
     @JsonIgnoreProperties({"roles", "products", "password", "identityCard", "vehicleRegistration", "isActive", "upgradeStatus", "upgradeRequestedAt"})
     private User users;
 
-    @OneToMany(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JsonIgnore
+    @OneToMany(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<product_img> imgs = new ArrayList<>();
 
     @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Brandcars brandcars;
 
     @OneToOne(mappedBy = "products", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    private Brandbattery  brandbattery;
+    private Brandbattery brandbattery;
 
     @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
     @JsonIgnore

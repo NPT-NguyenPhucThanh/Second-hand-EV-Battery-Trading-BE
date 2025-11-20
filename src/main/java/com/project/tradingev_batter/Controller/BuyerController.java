@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.project.tradingev_batter.Entity.Carts;
+import com.project.tradingev_batter.Entity.Contracts;
 import com.project.tradingev_batter.Entity.Dispute;
 import com.project.tradingev_batter.Entity.Feedback;
 import com.project.tradingev_batter.Entity.Order_detail;
@@ -28,6 +30,7 @@ import com.project.tradingev_batter.Entity.Refund;
 import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Entity.cart_items;
 import com.project.tradingev_batter.Service.CartService;
+import com.project.tradingev_batter.Service.ContractService;
 import com.project.tradingev_batter.Service.DisputeService;
 import com.project.tradingev_batter.Service.DocuSealService;
 import com.project.tradingev_batter.Service.FeedbackService;
@@ -62,6 +65,7 @@ import jakarta.validation.Valid;
 public class BuyerController {
 
     private final CartService cartService;
+    private final ContractService contractService;
     private final OrderService orderService;
     private final FeedbackService feedbackService;
     private final DisputeService disputeService;
@@ -75,6 +79,7 @@ public class BuyerController {
     private final RefundService refundService;
 
     public BuyerController(CartService cartService,
+            ContractService contractService,
             OrderService orderService,
             FeedbackService feedbackService,
             DisputeService disputeService,
@@ -87,6 +92,7 @@ public class BuyerController {
             GeminiAIService geminiAIService,
             RefundService refundService) {
         this.cartService = cartService;
+        this.contractService = contractService;
         this.orderService = orderService;
         this.feedbackService = feedbackService;
         this.disputeService = disputeService;
@@ -537,9 +543,21 @@ public class BuyerController {
             description = "Lấy tất cả đơn hàng của buyer hiện tại"
     )
     @GetMapping("/orders")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getOrders() {
         User buyer = getCurrentUser();
         List<Orders> orders = orderService.getOrders(buyer.getUserid());
+
+        // Force initialize lazy collections
+        orders.forEach(order -> {
+            if (order.getDetails() != null) {
+                order.getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
+            }
+        });
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
@@ -554,6 +572,7 @@ public class BuyerController {
             description = "Lấy thông tin chi tiết của đơn hàng bao gồm order details"
     )
     @GetMapping("/orders/{orderId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getOrderDetail(
             @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId) {
@@ -562,6 +581,13 @@ public class BuyerController {
         try {
             List<Order_detail> details = orderService.getOrderDetails(orderId, buyer.getUserid());
             Orders order = orderService.getOrderById(orderId);
+
+            // Force initialize lazy collections
+            details.forEach(detail -> {
+                if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                    detail.getProducts().getImgs().size();
+                }
+            });
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
@@ -585,6 +611,7 @@ public class BuyerController {
             description = "Hiển thị tất cả transactions: DEPOSIT, FINAL_PAYMENT, REFUND, COMMISSION"
     )
     @GetMapping("/orders/{orderId}/transactions")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getOrderTransactions(
             @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId) {
@@ -672,23 +699,35 @@ public class BuyerController {
             description = "Lấy tất cả disputes do buyer tạo"
     )
     @GetMapping("/disputes")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getDisputes() {
         User buyer = getCurrentUser();
         List<Dispute> disputes = disputeService.getDisputesByBuyer(buyer.getUserid());
+
+        // Force initialize lazy collections
+        disputes.forEach(dispute -> {
+            if (dispute.getOrder() != null && dispute.getOrder().getDetails() != null) {
+                dispute.getOrder().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
+            }
+        });
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("disputes", disputes);
 
         return ResponseEntity.ok(response);
-    }
+    }    //Refunddddddddddd
 
-    //Refunddddddddddd
     @Operation(
             summary = "Yêu cầu hoàn tiền",
             description = "Buyer gửi yêu cầu hoàn tiền cho đơn hàng có vấn đề. Manager sẽ xem xét và xử lý."
     )
     @PostMapping("/refund/request")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> requestRefund(@Valid @RequestBody RefundRequest request) {
         User buyer = getCurrentUser();
 
@@ -704,6 +743,15 @@ public class BuyerController {
                 request.getReason()
         );
 
+        // Force initialize lazy collections
+        if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+            refund.getOrders().getDetails().forEach(detail -> {
+                if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                    detail.getProducts().getImgs().size();
+                }
+            });
+        }
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("message", "Yêu cầu hoàn tiền đã được gửi. Manager sẽ xử lý trong thời gian sớm nhất.");
@@ -718,13 +766,78 @@ public class BuyerController {
             description = "Lấy tất cả refund requests của buyer"
     )
     @GetMapping("/refunds")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getRefunds() {
         User buyer = getCurrentUser();
         List<Refund> refunds = refundService.getRefundsByBuyer(buyer.getUserid());
 
+        // Force initialize lazy collections
+        refunds.forEach(refund -> {
+            if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+                refund.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
+            }
+        });
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("refunds", refunds);
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Xem các hợp đồng của mình
+    @Operation(
+            summary = "Xem danh sách hợp đồng",
+            description = "Lấy tất cả contracts của buyer"
+    )
+    @GetMapping("/contracts")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getContracts() {
+        User buyer = getCurrentUser();
+        List<Contracts> contracts = contractService.getBuyerContracts(buyer.getUserid());
+
+        // Force initialize lazy collections
+        contracts.forEach(contract -> {
+            if (contract.getOrders() != null && contract.getOrders().getDetails() != null) {
+                contract.getOrders().getDetails().forEach(detail -> {
+                    if (detail.getProducts() != null && detail.getProducts().getImgs() != null) {
+                        detail.getProducts().getImgs().size();
+                    }
+                });
+            }
+            if (contract.getProducts() != null && contract.getProducts().getImgs() != null) {
+                contract.getProducts().getImgs().size();
+            }
+        });
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("contracts", contracts);
+        response.put("totalContracts", contracts.size());
+
+        return ResponseEntity.ok(response);
+    }
+
+    //Ký hợp đồng qua DocuSeal
+    @Operation(
+            summary = "Ký hợp đồng qua DocuSeal",
+            description = "Buyer ký hợp đồng mua bán qua DocuSeal"
+    )
+    @PostMapping("/contracts/{contractId}/sign")
+    public ResponseEntity<Map<String, Object>> signContract(
+            @Parameter(description = "ID hợp đồng", required = true)
+            @PathVariable Long contractId) {
+        User buyer = getCurrentUser();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Đã gửi link ký hợp đồng");
+        response.put("contractId", contractId);
+        response.put("docusealSubmissionId", "placeholder");
 
         return ResponseEntity.ok(response);
     }

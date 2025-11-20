@@ -21,10 +21,10 @@ public class ContractServiceImpl implements ContractService {
     private final NotificationService notificationService;
 
     public ContractServiceImpl(ContractRepository contractRepository,
-                              ProductRepository productRepository,
-                              UserRepository userRepository,
-                              DocuSealService docuSealService,
-                              NotificationService notificationService) {
+            ProductRepository productRepository,
+            UserRepository userRepository,
+            DocuSealService docuSealService,
+            NotificationService notificationService) {
         this.contractRepository = contractRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
@@ -57,9 +57,9 @@ public class ContractServiceImpl implements ContractService {
 
             // Tạo notification cho seller
             notificationService.createNotification(
-                seller.getUserid(),
-                "Hợp đồng đăng bán đã sẵn sàng",
-                "Xe " + product.getProductname() + " đã đạt kiểm định. Vui lòng ký hợp đồng để đưa xe vào kho."
+                    seller.getUserid(),
+                    "Hợp đồng đăng bán đã sẵn sàng",
+                    "Xe " + product.getProductname() + " đã đạt kiểm định. Vui lòng ký hợp đồng để đưa xe vào kho."
             );
 
             return contract;
@@ -137,9 +137,9 @@ public class ContractServiceImpl implements ContractService {
 
             // Tạo notification cho seller
             notificationService.createNotification(
-                contract.getSellers().getUserid(),
-                "Ký hợp đồng thành công",
-                "Hợp đồng đã được ký. Xe " + (product != null ? product.getProductname() : "") + " đã được đưa vào kho và hiển thị trên nền tảng."
+                    contract.getSellers().getUserid(),
+                    "Ký hợp đồng thành công",
+                    "Hợp đồng đã được ký. Xe " + (product != null ? product.getProductname() : "") + " đã được đưa vào kho và hiển thị trên nền tảng."
             );
         }
 
@@ -155,5 +155,10 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public List<Contracts> getSellerContracts(Long sellerId) {
         return contractRepository.findBySellers_UseridOrderBySignedatDesc(sellerId);
+    }
+
+    @Override
+    public List<Contracts> getBuyerContracts(Long buyerId) {
+        return contractRepository.findByBuyers_UseridOrderBySignedatDesc(buyerId);
     }
 }
