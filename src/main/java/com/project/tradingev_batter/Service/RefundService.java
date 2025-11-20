@@ -132,10 +132,18 @@ public class RefundService {
     }
 
     //Lấy refunds của một order
+    @Transactional(readOnly = true)
     public List<Refund> getRefundsByOrder(Long orderId) {
         Orders order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order không tồn tại"));
-        return refundRepository.findByOrders(order);
+        List<Refund> refunds = refundRepository.findByOrders(order);
+        // Force initialize lazy collections
+        refunds.forEach(refund -> {
+            if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+                refund.getOrders().getDetails().size();
+            }
+        });
+        return refunds;
     }
 
     //Lấy refunds của buyer
@@ -146,8 +154,14 @@ public class RefundService {
     }
 
     //Lấy refund detail theo ID
+    @Transactional(readOnly = true)
     public Refund getRefundById(Long refundId) {
-        return refundRepository.findById(refundId)
+        Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new RuntimeException("Refund không tồn tại"));
+        // Force initialize lazy collections
+        if (refund.getOrders() != null && refund.getOrders().getDetails() != null) {
+            refund.getOrders().getDetails().size(); // Trigger lazy load
+        }
+        return refund;
     }
 }

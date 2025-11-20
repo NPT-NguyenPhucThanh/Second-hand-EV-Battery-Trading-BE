@@ -267,6 +267,7 @@ public class StaffController {
 
     @Operation(summary = "Lấy chi tiết một yêu cầu hoàn tiền")
     @GetMapping("/refunds/{refundId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getRefundDetail(@PathVariable Long refundId) {
         try {
             Refund refund = refundService.getRefundById(refundId);
@@ -335,6 +336,7 @@ public class StaffController {
 
     @Operation(summary = "Lấy danh sách yêu cầu hoàn tiền của một đơn hàng")
     @GetMapping("/refunds/order/{orderId}")
+    @Transactional(readOnly = true)
     public ResponseEntity<Map<String, Object>> getRefundsByOrder(@PathVariable Long orderId) {
         try {
             List<Refund> refunds = refundService.getRefundsByOrder(orderId);
