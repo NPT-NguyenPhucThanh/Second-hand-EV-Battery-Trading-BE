@@ -540,6 +540,11 @@ public class PaymentController {
                     product.setStatus(ProductStatus.DA_BAN);
                     product.setUpdatedat(new Date());
 
+                    if ("Car EV".equals(product.getType())) {
+                        product.setInWarehouse(false);
+                        log.info("   └─ In Warehouse set to: false (Car EV sold out)");
+                    }
+
                     Product savedProduct = productRepository.saveAndFlush(product); // Use saveAndFlush
 
                     log.info("✅ Product marked as SOLD OUT");
