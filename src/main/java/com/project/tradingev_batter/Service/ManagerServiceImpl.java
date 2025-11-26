@@ -482,6 +482,9 @@ public class ManagerServiceImpl implements ManagerService {
         existingPkg.setDurationMonths(pkg.getDurationMonths());
         existingPkg.setPrice(pkg.getPrice());
         //cần gì thì add thêm nha
+        existingPkg.setMaxCars(pkg.getMaxCars());
+        existingPkg.setMaxBatteries(pkg.getMaxBatteries());
+        existingPkg.setDescription(pkg.getDescription());
         return packageServiceRepository.save(existingPkg);
     }
 
