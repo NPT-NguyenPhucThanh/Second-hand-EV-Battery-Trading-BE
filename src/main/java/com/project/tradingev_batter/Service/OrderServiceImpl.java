@@ -122,6 +122,8 @@ public class OrderServiceImpl implements OrderService {
         // Set status dựa trên loại sản phẩm
         if ("Car EV".equals(product.getType())) {
             order.setStatus(OrderStatus.CHO_DAT_COC); // Xe: Chờ đặt cọc 10%
+            order.setTransferOwnership(true);
+            order.setChangePlate(true);
         } else {
             // Pin: Chờ thanh toán 100% (không cần chờ xác nhận)
             order.setStatus(OrderStatus.CHO_THANH_TOAN);
@@ -203,6 +205,9 @@ public class OrderServiceImpl implements OrderService {
         // Set status dựa trên loại sản phẩm
         if (hasCar) {
             order.setStatus(OrderStatus.CHO_DAT_COC); // Xe: Chờ đặt cọc 10%
+            // Tự động set transferOwnership và changePlate = true cho đơn hàng xe
+            order.setTransferOwnership(true);
+            order.setChangePlate(true);
         } else {
             // Chỉ pin: Chờ thanh toán 100%
             order.setStatus(OrderStatus.CHO_THANH_TOAN);

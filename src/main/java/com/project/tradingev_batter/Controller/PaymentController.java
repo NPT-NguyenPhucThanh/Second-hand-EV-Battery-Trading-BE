@@ -1,18 +1,41 @@
 package com.project.tradingev_batter.Controller;
 
-import com.project.tradingev_batter.Entity.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.project.tradingev_batter.Entity.Order_detail;
+import com.project.tradingev_batter.Entity.Orders;
+import com.project.tradingev_batter.Entity.Product;
+import com.project.tradingev_batter.Entity.Transaction;
+import com.project.tradingev_batter.Entity.User;
 import com.project.tradingev_batter.Repository.OrderRepository;
-import com.project.tradingev_batter.Repository.TransactionRepository;
 import com.project.tradingev_batter.Repository.ProductRepository;
-import com.project.tradingev_batter.Service.VNPayService;
-import com.project.tradingev_batter.Service.SellerService;
+import com.project.tradingev_batter.Repository.TransactionRepository;
 import com.project.tradingev_batter.Service.DocuSealService;
 import com.project.tradingev_batter.Service.NotificationService;
+import com.project.tradingev_batter.Service.SellerService;
+import com.project.tradingev_batter.Service.VNPayService;
 import com.project.tradingev_batter.enums.OrderStatus;
 import com.project.tradingev_batter.enums.ProductStatus;
 import com.project.tradingev_batter.enums.TransactionStatus;
 import com.project.tradingev_batter.enums.TransactionType;
 import com.project.tradingev_batter.security.CustomUserDetails;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -20,14 +43,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
-
-import java.text.SimpleDateFormat;
-import java.util.*;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -44,12 +59,12 @@ public class PaymentController {
     private final NotificationService notificationService;
 
     public PaymentController(VNPayService vnPayService,
-                           TransactionRepository transactionRepository,
-                           OrderRepository orderRepository,
-                           ProductRepository productRepository,
-                           SellerService sellerService,
-                           DocuSealService docuSealService,
-                           NotificationService notificationService) {
+            TransactionRepository transactionRepository,
+            OrderRepository orderRepository,
+            ProductRepository productRepository,
+            SellerService sellerService,
+            DocuSealService docuSealService,
+            NotificationService notificationService) {
         this.vnPayService = vnPayService;
         this.transactionRepository = transactionRepository;
         this.orderRepository = orderRepository;
@@ -65,9 +80,9 @@ public class PaymentController {
             description = "Tạo payment URL để redirect buyer/seller sang VNPay. Hỗ trợ các loại: DEPOSIT (đặt cọc 10%), FINAL_PAYMENT (90% còn lại), PACKAGE_PURCHASE (mua gói)"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Thành công - Trả về payment URL để redirect"),
-            @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc order không hợp lệ"),
-            @ApiResponse(responseCode = "500", description = "Lỗi khi tạo payment URL")
+        @ApiResponse(responseCode = "200", description = "Thành công - Trả về payment URL để redirect"),
+        @ApiResponse(responseCode = "400", description = "Thiếu thông tin hoặc order không hợp lệ"),
+        @ApiResponse(responseCode = "500", description = "Lỗi khi tạo payment URL")
     })
     @PostMapping("/create-payment-url")
     public ResponseEntity<Map<String, Object>> createPaymentUrl(
@@ -76,26 +91,26 @@ public class PaymentController {
             @Parameter(description = "Loại thanh toán: DEPOSIT, FINAL_PAYMENT, PACKAGE_PURCHASE", required = true)
             @RequestParam String transactionType,
             HttpServletRequest request) {
-        
+
         try {
             User user = getCurrentUser();
             Orders order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
-            
+
             // Kiểm tra quyền sở hữu
             if (!order.getUsers().getUserid().equals(user.getUserid())) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Bạn không có quyền thanh toán đơn hàng này"
+                        "status", "error",
+                        "message", "Bạn không có quyền thanh toán đơn hàng này"
                 ));
             }
-            
+
             // Tính số tiền cần thanh toán
             double amount = calculatePaymentAmount(order, TransactionType.valueOf(transactionType));
-            
+
             // Tạo transaction code unique
             String transactionCode = vnPayService.generateTransactionCode(orderId, transactionType);
-            
+
             // Tạo transaction record (status = PENDING)
             Transaction transaction = new Transaction();
             transaction.setTransactionCode(transactionCode);
@@ -114,14 +129,14 @@ public class PaymentController {
 
             // Get IP address
             String ipAddress = getIpAddress(request);
-            
+
             // Tạo payment URL
             String paymentUrl;
-            
+
             if (vnPayService.isMockMode()) {
                 // MOCK MODE - Return mock URL cho testing
                 paymentUrl = "http://localhost:8080/api/payment/mock-payment?transactionCode=" + transactionCode;
-                
+
                 Map<String, Object> response = new HashMap<>();
                 response.put("status", "success");
                 response.put("message", "MOCK MODE - Use this URL to simulate payment");
@@ -129,13 +144,13 @@ public class PaymentController {
                 response.put("transactionCode", transactionCode);
                 response.put("amount", amount);
                 response.put("note", "Mock mode enabled. Click URL to auto-success payment.");
-                
+
                 return ResponseEntity.ok(response);
             } else {
                 // REAL MODE - Tạo VNPay URL thật
                 String orderInfo = "Thanh toan don hang #" + orderId;
                 paymentUrl = vnPayService.createPaymentUrl(amount, orderInfo, transactionCode, ipAddress);
-                
+
                 Map<String, Object> response = new HashMap<>();
                 response.put("status", "success");
                 response.put("message", "Redirect buyer to VNPay");
@@ -143,15 +158,15 @@ public class PaymentController {
                 response.put("transactionCode", transactionCode);
                 response.put("amount", amount);
                 response.put("expiryMinutes", 60);
-                
+
                 return ResponseEntity.ok(response);
             }
-            
+
         } catch (Exception e) {
             log.error("Error creating payment URL", e);
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Không thể tạo link thanh toán: " + e.getMessage()
+                    "status", "error",
+                    "message", "Không thể tạo link thanh toán: " + e.getMessage()
             ));
         }
     }
@@ -165,16 +180,16 @@ public class PaymentController {
     public ResponseEntity<Map<String, Object>> vnpayReturn(@RequestParam Map<String, String> params) {
         try {
             log.info("VNPay return callback received: {}", params);
-            
+
             // Verify signature
             if (!vnPayService.verifyCallback(params)) {
                 log.warn("Invalid signature from VNPay");
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error",
-                    "message", "Chữ ký không hợp lệ - Có thể bị giả mạo!"
+                        "status", "error",
+                        "message", "Chữ ký không hợp lệ - Có thể bị giả mạo!"
                 ));
             }
-            
+
             // Parse response
             Map<String, String> vnpayData = vnPayService.parseVNPayResponse(params);
             String transactionCode = vnpayData.get("transactionCode");
@@ -182,14 +197,16 @@ public class PaymentController {
             // Find transaction
             Transaction transaction = transactionRepository.findByTransactionCode(transactionCode)
                     .orElseThrow(() -> new RuntimeException("Transaction not found"));
-            
+
             // XỬ LÝ STATUS NGAY TẠI ĐÂY (không cần chờ IPN)
             if (transaction.getStatus() == TransactionStatus.PENDING) {
                 // Update transaction
                 updateTransactionFromVNPay(transaction, vnpayData);
 
                 // FETCH order with details để tránh LazyInitializationException
-                Orders order = orderRepository.findByIdWithDetails(transaction.getOrders().getOrderid())
+                // IMPORTANT: Use findById to preserve all scalar fields (transferOwnership, changePlate)
+                // findByIdWithDetails might not fetch all scalar fields properly
+                Orders order = orderRepository.findById(transaction.getOrders().getOrderid())
                         .orElseThrow(() -> new RuntimeException("Order not found"));
 
                 // Update order status
@@ -217,8 +234,8 @@ public class PaymentController {
         } catch (Exception e) {
             log.error("Error processing VNPay return", e);
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Lỗi xử lý callback: " + e.getMessage()
+                    "status", "error",
+                    "message", "Lỗi xử lý callback: " + e.getMessage()
             ));
         }
     }
@@ -232,70 +249,70 @@ public class PaymentController {
             description = "Webhook callback từ VNPay sau khi thanh toán. VNPay tự động gọi endpoint này để thông báo kết quả thanh toán."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Xử lý callback thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu callback không hợp lệ")
+        @ApiResponse(responseCode = "200", description = "Xử lý callback thành công"),
+        @ApiResponse(responseCode = "400", description = "Dữ liệu callback không hợp lệ")
     })
     @PostMapping("/vnpay-ipn")
     public ResponseEntity<Map<String, Object>> vnpayIPN(@RequestParam Map<String, String> params) {
         try {
             log.info("VNPay IPN received: {}", params);
-            
+
             // Verify signature
             if (!vnPayService.verifyCallback(params)) {
                 log.error("Invalid signature from VNPay IPN");
                 return ResponseEntity.ok(Map.of(
-                    "RspCode", "97",
-                    "Message", "Invalid signature"
+                        "RspCode", "97",
+                        "Message", "Invalid signature"
                 ));
             }
-            
+
             // Parse response
             Map<String, String> vnpayData = vnPayService.parseVNPayResponse(params);
             String transactionCode = vnpayData.get("transactionCode");
             String responseCode = vnpayData.get("responseCode");
-            
+
             // Find transaction
             Optional<Transaction> transactionOpt = transactionRepository.findByTransactionCode(transactionCode);
-            
+
             if (transactionOpt.isEmpty()) {
                 log.error("Transaction not found: {}", transactionCode);
                 return ResponseEntity.ok(Map.of(
-                    "RspCode", "01",
-                    "Message", "Order not found"
+                        "RspCode", "01",
+                        "Message", "Order not found"
                 ));
             }
-            
+
             Transaction transaction = transactionOpt.get();
-            
+
             // Check if already processed (tránh duplicate IPN)
-            if (transaction.getStatus() == TransactionStatus.SUCCESS || 
-                transaction.getStatus() == TransactionStatus.FAILED) {
+            if (transaction.getStatus() == TransactionStatus.SUCCESS
+                    || transaction.getStatus() == TransactionStatus.FAILED) {
                 log.warn("Transaction already processed: {}", transactionCode);
                 return ResponseEntity.ok(Map.of(
-                    "RspCode", "02",
-                    "Message", "Order already confirmed"
+                        "RspCode", "02",
+                        "Message", "Order already confirmed"
                 ));
             }
-            
+
             // Update transaction
             updateTransactionFromVNPay(transaction, vnpayData);
-            
+
             // Update order status
             Orders order = transaction.getOrders();
             updateOrderStatusAfterPayment(order, transaction);
-            
+
             // Return success to VNPay
             log.info("IPN processed successfully for transaction: {}", transactionCode);
             return ResponseEntity.ok(Map.of(
-                "RspCode", "00",
-                "Message", "Confirm Success"
+                    "RspCode", "00",
+                    "Message", "Confirm Success"
             ));
-            
+
         } catch (Exception e) {
             log.error("Error processing VNPay IPN", e);
             return ResponseEntity.ok(Map.of(
-                "RspCode", "99",
-                "Message", "Unknown error"
+                    "RspCode", "99",
+                    "Message", "Unknown error"
             ));
         }
     }
@@ -306,17 +323,17 @@ public class PaymentController {
         try {
             Transaction transaction = transactionRepository.findByTransactionCode(transactionCode)
                     .orElseThrow(() -> new RuntimeException("Transaction not found"));
-            
+
             // Mock VNPay response
             Map<String, String> mockResponse = vnPayService.mockPaymentSuccess(transactionCode, transaction.getAmount());
-            
+
             // Update transaction
             updateTransactionFromVNPay(transaction, mockResponse);
-            
+
             // Update order
             Orders order = transaction.getOrders();
             updateOrderStatusAfterPayment(order, transaction);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "MOCK - Thanh toán thành công");
@@ -324,13 +341,13 @@ public class PaymentController {
             response.put("amount", transaction.getAmount());
             response.put("orderId", order.getOrderid());
             response.put("orderStatus", order.getStatus());
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", e.getMessage()
+                    "status", "error",
+                    "message", e.getMessage()
             ));
         }
     }
@@ -341,34 +358,33 @@ public class PaymentController {
         try {
             Transaction transaction = transactionRepository.findByTransactionCode(transactionCode)
                     .orElseThrow(() -> new RuntimeException("Transaction not found"));
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("transaction", Map.of(
-                "transactionCode", transaction.getTransactionCode(),
-                "amount", transaction.getAmount(),
-                "status", transaction.getStatus(),
-                "transactionType", transaction.getTransactionType(),
-                "method", transaction.getMethod(),
-                "vnpayTransactionNo", transaction.getVnpayTransactionNo() != null ? transaction.getVnpayTransactionNo() : "N/A",
-                "bankCode", transaction.getBankCode() != null ? transaction.getBankCode() : "N/A",
-                "paymentDate", transaction.getPaymentDate() != null ? transaction.getPaymentDate() : null,
-                "responseMessage", transaction.getVnpayResponseCode() != null ? 
-                    vnPayService.getResponseMessage(transaction.getVnpayResponseCode()) : "Chờ thanh toán"
+                    "transactionCode", transaction.getTransactionCode(),
+                    "amount", transaction.getAmount(),
+                    "status", transaction.getStatus(),
+                    "transactionType", transaction.getTransactionType(),
+                    "method", transaction.getMethod(),
+                    "vnpayTransactionNo", transaction.getVnpayTransactionNo() != null ? transaction.getVnpayTransactionNo() : "N/A",
+                    "bankCode", transaction.getBankCode() != null ? transaction.getBankCode() : "N/A",
+                    "paymentDate", transaction.getPaymentDate() != null ? transaction.getPaymentDate() : null,
+                    "responseMessage", transaction.getVnpayResponseCode() != null
+                    ? vnPayService.getResponseMessage(transaction.getVnpayResponseCode()) : "Chờ thanh toán"
             ));
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             return ResponseEntity.status(404).body(Map.of(
-                "status", "error",
-                "message", "Transaction not found"
+                    "status", "error",
+                    "message", "Transaction not found"
             ));
         }
     }
 
     // ============ HELPER METHODS =====================================================================================
-
     private double calculatePaymentAmount(Orders order, TransactionType transactionType) {
         switch (transactionType) {
             case DEPOSIT:
@@ -400,34 +416,34 @@ public class PaymentController {
 
     private void updateTransactionFromVNPay(Transaction transaction, Map<String, String> vnpayData) {
         String responseCode = vnpayData.get("responseCode");
-        
+
         transaction.setVnpayTransactionNo(vnpayData.get("vnpayTransactionNo"));
         transaction.setBankCode(vnpayData.get("bankCode"));
         transaction.setCardType(vnpayData.get("cardType"));
         transaction.setVnpayResponseCode(responseCode);
-        
+
         if (vnPayService.isPaymentSuccess(responseCode)) {
             transaction.setStatus(TransactionStatus.SUCCESS);
-            
+
             // Parse payment date
             try {
                 SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
                 transaction.setPaymentDate(formatter.parse(vnpayData.get("paymentDate")));
-                
+
                 // Tính escrow release date (7 ngày sau)
                 Calendar calendar = Calendar.getInstance();
                 calendar.setTime(transaction.getPaymentDate());
                 calendar.add(Calendar.DAY_OF_MONTH, 7);
                 transaction.setEscrowReleaseDate(calendar.getTime());
                 transaction.setIsEscrowed(true); // Đánh dấu tiền đang giữ
-                
+
             } catch (Exception e) {
                 log.error("Error parsing payment date", e);
             }
         } else {
             transaction.setStatus(TransactionStatus.FAILED);
         }
-        
+
         transactionRepository.save(transaction);
         log.info("Transaction updated: {} - Status: {}", transaction.getTransactionCode(), transaction.getStatus());
     }
@@ -435,6 +451,10 @@ public class PaymentController {
     @Transactional // Đảm bảo tất cả thao tác trong method này được thực thi trong cùng 1 transaction
     protected void updateOrderStatusAfterPayment(Orders order, Transaction transaction) {
         if (transaction.getStatus() == TransactionStatus.SUCCESS) {
+            // Log current values before update
+            log.info("Order {} before update - transferOwnership: {}, changePlate: {}",
+                    order.getOrderid(), order.getTransferOwnership(), order.getChangePlate());
+
             switch (transaction.getTransactionType()) {
                 case DEPOSIT:
                     order.setStatus(OrderStatus.DA_DAT_COC); // Đã đặt cọc 10%
@@ -450,8 +470,8 @@ public class PaymentController {
                             User buyer = order.getUsers();
                             notificationService.createNotification(buyer.getUserid(),
                                     "Lỗi tạo hợp đồng điện tử",
-                                    "Hệ thống không thể tạo hợp đồng tự động cho đơn hàng #" + order.getOrderid() +
-                                            ". Vui lòng liên hệ Staff để được hỗ trợ. Lỗi: " + e.getMessage());
+                                    "Hệ thống không thể tạo hợp đồng tự động cho đơn hàng #" + order.getOrderid()
+                                    + ". Vui lòng liên hệ Staff để được hỗ trợ. Lỗi: " + e.getMessage());
                         } catch (Exception notifEx) {
                             log.error("Failed to send notification: {}", notifEx.getMessage());
                         }
@@ -484,7 +504,7 @@ public class PaymentController {
         } else {
             order.setStatus(OrderStatus.THAT_BAI); // Thanh toán thất bại
         }
-        
+
         order.setUpdatedat(new Date());
         orderRepository.save(order);
         log.info("Order {} status updated to: {}", order.getOrderid(), order.getStatus());
@@ -533,7 +553,7 @@ public class PaymentController {
 
                     log.info("✅ Amount reduced: {} → {} (Remaining in stock)", currentAmount, newAmount);
                     log.info("   Product #{} saved successfully with new amount: {}",
-                             savedProduct.getProductid(), savedProduct.getAmount());
+                            savedProduct.getProductid(), savedProduct.getAmount());
                 } else {
                     // Hết hàng hoặc bán hết → chuyển status DA_BAN
                     product.setAmount(0);
@@ -562,11 +582,9 @@ public class PaymentController {
     }
 
     /**
-     * TỰ ĐỘNG TẠO HỢP ĐỒNG SAU KHI ĐẶT CỌC THÀNH CÔNG
-     * 1. Lấy thông tin buyer, seller, product từ order
-     * 2. Gọi DocuSealService để tạo hợp đồng
-     * 3. Gửi email/notification cho buyer và seller ký
-     * 4. Notify manager để duyệt
+     * TỰ ĐỘNG TẠO HỢP ĐỒNG SAU KHI ĐẶT CỌC THÀNH CÔNG 1. Lấy thông tin buyer,
+     * seller, product từ order 2. Gọi DocuSealService để tạo hợp đồng 3. Gửi
+     * email/notification cho buyer và seller ký 4. Notify manager để duyệt
      */
     protected void createContractAfterDeposit(Orders order) {
         try {
@@ -587,8 +605,8 @@ public class PaymentController {
             User seller = product.getUsers();
 
             // Tạo hợp đồng mua bán xe
-            String transactionLocation = order.getTransactionLocation() != null ?
-                    order.getTransactionLocation() : "Chưa xác định";
+            String transactionLocation = order.getTransactionLocation() != null
+                    ? order.getTransactionLocation() : "Chưa xác định";
 
             // Gọi DocuSealService để tạo hợp đồng
             docuSealService.createSaleTransactionContract(order, buyer, seller, transactionLocation);
@@ -596,14 +614,12 @@ public class PaymentController {
 
             // NOTE: Notifications đã được tạo tự động trong DocuSealServiceImpl.createSaleTransactionContract()
             // với URLs ký cụ thể cho từng bên (buyer và seller)
-
         } catch (Exception e) {
             log.error("Failed to create DocuSeal contract: " + e.getMessage(), e);
             // Không throw exception để không block flow thanh toán
             // Có thể retry sau hoặc tạo manual
         }
     }
-
 
     private String getIpAddress(HttpServletRequest request) {
         String ipAddress = request.getHeader("X-Forwarded-For");

@@ -362,10 +362,6 @@ public class BuyerController {
             @RequestParam String transactionLocation,
             @Parameter(description = "Thời gian hẹn giao dịch (yyyy-MM-dd HH:mm:ss hoặc timestamp)", required = true)
             @RequestParam String appointmentDate,
-            @Parameter(description = "Có sang tên xe không?")
-            @RequestParam(required = false, defaultValue = "false") Boolean transferOwnership,
-            @Parameter(description = "Có đổi biển số không?")
-            @RequestParam(required = false, defaultValue = "false") Boolean changePlate,
             HttpServletRequest request) {
 
         User buyer = getCurrentUser();
@@ -437,8 +433,8 @@ public class BuyerController {
             // Lưu thông tin giao dịch vào order
             order.setTransactionLocation(transactionLocation);
             order.setAppointmentDate(parsedAppointmentDate);
-            order.setTransferOwnership(transferOwnership);
-            order.setChangePlate(changePlate);
+            // transferOwnership và changePlate đã được set tự động = true khi tạo order xe
+            // KHÔNG cho phép override để tránh bị ghi đè thành false
             order.setUpdatedat(new Date());
             orderService.updateOrder(order); // Cần thêm method này vào OrderService
 
@@ -448,8 +444,8 @@ public class BuyerController {
             response.put("message", "Thông tin giao dịch đã được lưu. Vui lòng thanh toán đặt cọc");
             response.put("transactionLocation", transactionLocation);
             response.put("appointmentDate", parsedAppointmentDate);
-            response.put("transferOwnership", transferOwnership);
-            response.put("changePlate", changePlate);
+            response.put("transferOwnership", order.getTransferOwnership()); // Tự động = true cho xe
+            response.put("changePlate", order.getChangePlate()); // Tự động = true cho xe
             response.put("nextStep", Map.of(
                     "endpoint", "/api/payment/create-payment-url",
                     "method", "POST",
@@ -483,10 +479,6 @@ public class BuyerController {
     public ResponseEntity<Map<String, Object>> makeFinalPayment(
             @Parameter(description = "ID đơn hàng", required = true)
             @PathVariable Long orderId,
-            @Parameter(description = "Có sang tên xe không?")
-            @RequestParam(required = false) Boolean transferOwnership,
-            @Parameter(description = "Có đổi biển số không?")
-            @RequestParam(required = false) Boolean changePlate,
             HttpServletRequest request) {
 
         User buyer = getCurrentUser();
@@ -501,13 +493,9 @@ public class BuyerController {
                 ));
             }
 
-            //Lưu thông tin transferOwnership, changePlate vào Orders
-            if (transferOwnership != null) {
-                order.setTransferOwnership(transferOwnership);
-            }
-            if (changePlate != null) {
-                order.setChangePlate(changePlate);
-            }
+            // transferOwnership và changePlate đã được set tự động = true khi tạo order xe
+            // KHÔNG cho phép override để tránh bị ghi đè thành false
+            // Các field này đã được fix và không thể thay đổi
             orderService.updateOrder(order);
 
             // REDIRECT SANG PAYMENT CONTROLLER
@@ -521,9 +509,9 @@ public class BuyerController {
                             "orderId", orderId,
                             "transactionType", "FINAL_PAYMENT"
                     ),
-                    "additionalInfo", Map.of(
-                            "transferOwnership", transferOwnership != null && transferOwnership,
-                            "changePlate", changePlate != null && changePlate
+                    "info", Map.of(
+                            "transferOwnership", order.getTransferOwnership(), // Đã tự động = true
+                            "changePlate", order.getChangePlate() // Đã tự động = true
                     )
             ));
 
