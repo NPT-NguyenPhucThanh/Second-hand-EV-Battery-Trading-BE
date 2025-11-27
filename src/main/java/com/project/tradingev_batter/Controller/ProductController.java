@@ -162,10 +162,17 @@ public class ProductController {
     public ResponseEntity<Map<String, String>> deleteProduct(
             @Parameter(description = "ID của sản phẩm cần xóa", required = true)
             @PathVariable Long id) {
-        productService.deleteProduct(id);
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("message", "Sản phẩm đã được xóa");
-        return ResponseEntity.ok(response);
+        try {
+            productService.deleteProduct(id);
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Sản phẩm đã được xóa");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 }

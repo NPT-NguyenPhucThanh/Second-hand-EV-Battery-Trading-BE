@@ -107,4 +107,8 @@ public class Product {
     @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Order_detail> order_detail = new ArrayList<>();
+
+    @OneToMany(mappedBy = "products", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Contracts> contracts = new ArrayList<>();
 }

@@ -97,9 +97,25 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void deleteProduct(Long id) {
         Product product = getProductById(id);
+
         // Kiểm tra xem sản phẩm có đang trong đơn hàng nào không
         if (!product.getOrder_detail().isEmpty()) {
             throw new RuntimeException("Không thể xóa sản phẩm đang có trong đơn hàng");
+        }
+
+        // Kiểm tra xem sản phẩm có hợp đồng nào không
+        if (!product.getContracts().isEmpty()) {
+            throw new RuntimeException("Không thể xóa sản phẩm đã có hợp đồng");
+        }
+
+        // Kiểm tra xem sản phẩm có trong giỏ hàng không
+        if (!product.getCart_item().isEmpty()) {
+            throw new RuntimeException("Không thể xóa sản phẩm đang có trong giỏ hàng của người dùng");
+        }
+
+        // Kiểm tra xem sản phẩm có đánh giá không
+        if (!product.getFeedbacks().isEmpty()) {
+            throw new RuntimeException("Không thể xóa sản phẩm đã có đánh giá");
         }
 
         // Xóa tất cả ảnh của sản phẩm từ Cloudinary trước khi xóa product
